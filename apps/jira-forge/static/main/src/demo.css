@@ -1,0 +1,52 @@
+/* Demo-only chrome around the app. Uses the app's design tokens. */
+.pp-demo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--pp-space-3);
+  padding: var(--pp-space-3) var(--pp-space-4);
+  border-bottom: 1px solid var(--pp-color-border);
+  background: var(--pp-color-surface);
+  color: var(--pp-color-text);
+  font-family: var(--pp-font-family);
+  font-size: var(--pp-font-size-small);
+}
+
+.pp-demo-text {
+  flex: 1 1 20rem;
+  margin: 0;
+}
+
+.pp-demo-roles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pp-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pp-demo-role {
+  display: inline-block;
+  padding: var(--pp-space-1) var(--pp-space-3);
+  border: 1px solid var(--pp-color-border);
+  border-radius: var(--pp-radius-sm);
+  color: var(--pp-color-text);
+  text-decoration: none;
+}
+
+.pp-demo-role[aria-current='page'] {
+  border-color: var(--pp-color-highlight);
+  color: var(--pp-color-highlight);
+  font-weight: 600;
+}
+
+.pp-demo-role:focus-visible {
+  outline: none;
+  box-shadow: var(--pp-focus-ring);
+}
+
+body {
+  margin: 0;
+  background: var(--pp-color-background);
+}

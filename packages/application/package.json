@@ -1,0 +1,17 @@
+{
+  "name": "@planning-poker/application",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./testing": "./src/testing/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json && tsc -p test/tsconfig.json"
+  },
+  "dependencies": {
+    "@planning-poker/contracts": "0.1.0",
+    "@planning-poker/domain": "0.1.0"
+  }
+}

@@ -1,0 +1,134 @@
+# Planning Poker for Jira Cloud (Atlassian Forge, Custom UI).
+# Replace app.id by running `forge register` from this directory before the first deploy.
+modules:
+  jira:globalPage:
+    - key: planning-poker
+      resource: main
+      resolver:
+        function: resolver
+      title: Planning Poker
+  function:
+    - key: resolver
+      handler: index.handler
+resources:
+  - key: main
+    path: static/main/build
+permissions:
+  scopes:
+    - storage:app # Custom Entity Store and KVS
+    - read:jira-user # /user/bulk, /user/search
+    - read:jira-work # /mypermissions (administrator check)
+app:
+  id: ari:cloud:ecosystem::app/00000000-0000-0000-0000-000000000000
+  runtime:
+    name: nodejs24.x
+  # Must match packages/persistence/forge/src/schema.ts. Entities and indexes cannot be deleted
+  # once deployed to staging or production.
+  storage:
+    entities:
+      - name: team
+        attributes:
+          id:
+            type: string
+          tenantId:
+            type: string
+          name:
+            type: string
+          archived:
+            type: boolean
+          version:
+            type: integer
+          data:
+            type: any
+        indexes:
+          - name: by-tenant
+            partition:
+              - tenantId
+            range:
+              - name
+      - name: appsettings
+        attributes:
+          tenantId:
+            type: string
+          version:
+            type: integer
+          data:
+            type: any
+      - name: auditevent
+        attributes:
+          tenantId:
+            type: string
+          teamId:
+            type: string
+          sessionId:
+            type: string
+          occurredAt:
+            type: integer
+          type:
+            type: string
+          data:
+            type: any
+        indexes:
+          - name: by-team
+            partition:
+              - teamId
+            range:
+              - occurredAt
+          - name: by-session
+            partition:
+              - sessionId
+            range:
+              - occurredAt
+      - name: session
+        attributes:
+          id:
+            type: string
+          tenantId:
+            type: string
+          teamId:
+            type: string
+          status:
+            type: string
+          version:
+            type: integer
+          updatedAt:
+            type: integer
+          data:
+            type: any
+        indexes:
+          - name: by-team
+            partition:
+              - teamId
+            range:
+              - updatedAt
+      - name: sessionmember
+        attributes:
+          tenantId:
+            type: string
+          sessionId:
+            type: string
+          userId:
+            type: string
+        indexes:
+          - name: by-user
+            partition:
+              - userId
+          - name: by-session
+            partition:
+              - sessionId
+      - name: vote
+        attributes:
+          tenantId:
+            type: string
+          roundId:
+            type: string
+          userId:
+            type: string
+          cardId:
+            type: string
+          submittedAt:
+            type: integer
+        indexes:
+          - name: by-round
+            partition:
+              - roundId

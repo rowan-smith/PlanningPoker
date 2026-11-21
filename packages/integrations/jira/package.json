@@ -1,0 +1,17 @@
+{
+  "name": "@planning-poker/integration-jira",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@forge/api": "^8.5.0",
+    "@planning-poker/application": "0.1.0",
+    "@planning-poker/domain": "0.1.0"
+  }
+}
