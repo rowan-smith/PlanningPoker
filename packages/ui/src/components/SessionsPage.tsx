@@ -83,7 +83,7 @@ export function SessionsPage({ api, initialSessionId = null }: SessionsPageProps
                     <div className="pp-row-main">
                       <h3 className="pp-list-item-title">
                         {session.name}
-                        <span className="pp-badge pp-badge-gap">
+                        <span className="pp-badge pp-badge-gap" data-status={session.status}>
                           {STATUS_LABELS[session.status]}
                         </span>
                       </h3>

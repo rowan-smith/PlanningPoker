@@ -1,4 +1,5 @@
 import '@planning-poker/ui/styles.css';
+import '@planning-poker/ui/themes/jira.css';
 
 import { App } from '@planning-poker/ui';
 import { StrictMode } from 'react';
@@ -14,6 +15,6 @@ if (container === null) {
 
 createRoot(container).render(
   <StrictMode>
-    <App api={forgeApi} />
+    <App api={forgeApi} sidebar={{ platformName: 'Jira Cloud' }} />
   </StrictMode>,
 );

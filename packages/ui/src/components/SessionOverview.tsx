@@ -36,7 +36,9 @@ export function SessionOverview({ api, sessionId, onBack }: SessionOverviewProps
         <>
           <h2 id="pp-overview-title" className="pp-page-title">
             {state.value.name}
-            <span className="pp-badge pp-badge-gap">{STATUS_LABELS[state.value.status]}</span>
+            <span className="pp-badge pp-badge-gap" data-status={state.value.status}>
+              {STATUS_LABELS[state.value.status]}
+            </span>
           </h2>
           <p className="pp-muted">
             {state.value.teamName}

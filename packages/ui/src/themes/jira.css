@@ -1,0 +1,381 @@
+/*
+ * Jira theme: the "Planning Poker for Jira" look (dark Jira-style workspace, teal actions).
+ * Imported only by the Forge Custom UI entry, after styles.css; the demo keeps the base look.
+ * It redefines tokens first, then refines shared components. Add colours as tokens here.
+ */
+:root {
+  --pp-color-background: #10151e;
+  --pp-color-surface: #1c2431;
+  --pp-color-surface-raised: #26303f;
+  --pp-color-sidebar: #171d28;
+  --pp-color-field: #141b26;
+  --pp-color-border: #303b4b;
+  --pp-color-border-strong: #3e4b60;
+  --pp-color-primary: #55d9cd;
+  --pp-color-primary-subtle: #224641;
+  --pp-color-on-primary: #0d2529;
+  --pp-color-highlight: #ffbd6b;
+  --pp-color-text: #edf2f8;
+  --pp-color-text-soft: #c0cadd;
+  --pp-color-text-muted: #92a2b8;
+  --pp-color-danger: #fa888c;
+  --pp-color-success: #69d4a7;
+  --pp-color-link: #83b7ff;
+
+  --pp-tone-neutral-bg: #2e3b4d;
+  --pp-tone-neutral-fg: #b2c7dc;
+  --pp-tone-green-bg: #173b32;
+  --pp-tone-green-fg: #76e1ac;
+  --pp-tone-amber-bg: #433524;
+  --pp-tone-amber-fg: #ffd083;
+  --pp-tone-blue-bg: #213955;
+  --pp-tone-blue-fg: #92c2ff;
+  --pp-tone-red-bg: #4b3038;
+  --pp-tone-red-fg: #ff979f;
+  --pp-tone-teal-bg: #194442;
+  --pp-tone-teal-fg: #80ede1;
+
+  --pp-radius-sm: 6px;
+  --pp-radius-md: 10px;
+  --pp-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+  --pp-font-size-body: 14px;
+  --pp-font-size-small: 12px;
+  --pp-font-size-title: 25px;
+  --pp-focus-ring: 0 0 0 2px var(--pp-color-background), 0 0 0 4px var(--pp-color-primary);
+  --pp-control-height: 36px;
+}
+
+/* Touch screens keep the larger 44px targets. */
+@media (pointer: coarse) {
+  :root {
+    --pp-control-height: 44px;
+  }
+}
+
+body {
+  margin: 0;
+  background: var(--pp-color-background);
+}
+
+.pp-app {
+  line-height: 1.45;
+  letter-spacing: -0.01em;
+}
+
+/* Shell */
+.pp-sidebar {
+  background: var(--pp-color-sidebar);
+}
+
+.pp-brand-icon {
+  background: linear-gradient(145deg, #5ce6da, #3688cc);
+  color: #091b24;
+}
+
+.pp-sidebar-link {
+  color: var(--pp-color-text-soft);
+}
+
+.pp-sidebar-link[aria-current='page'] {
+  color: #77eadf;
+}
+
+.pp-shell-content {
+  max-width: 1280px;
+}
+
+/* Page structure */
+.pp-page {
+  gap: var(--pp-space-4);
+}
+
+.pp-page-title {
+  font-weight: 790;
+  letter-spacing: -0.04em;
+  line-height: 1.2;
+}
+
+.pp-page .pp-page {
+  gap: var(--pp-space-3);
+}
+
+.pp-section-title {
+  color: var(--pp-color-text);
+  font-size: 15px;
+  font-weight: 760;
+  letter-spacing: -0.01em;
+  text-transform: none;
+}
+
+.pp-card {
+  padding: 18px 20px;
+  border-color: var(--pp-color-border);
+  background: var(--pp-color-surface);
+}
+
+.pp-list {
+  gap: var(--pp-space-2);
+}
+
+.pp-list-item-title {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.pp-muted {
+  font-size: 12px;
+}
+
+.pp-label {
+  color: #d3deeb;
+  font-size: 12px;
+  font-weight: 660;
+}
+
+.pp-link {
+  color: var(--pp-color-link);
+  font-weight: 670;
+}
+
+/* Controls */
+.pp-button {
+  min-height: var(--pp-control-height);
+  padding: 0 15px;
+  border-color: var(--pp-color-border);
+  background: var(--pp-color-surface-raised);
+  color: #e3ebf5;
+  font-size: 12px;
+  font-weight: 680;
+  white-space: nowrap;
+}
+
+.pp-button:hover:not(:disabled) {
+  border-color: var(--pp-color-primary);
+  background: #2b3545;
+}
+
+.pp-button:disabled {
+  opacity: 0.45;
+}
+
+.pp-button-primary {
+  border-color: var(--pp-color-primary);
+  background: var(--pp-color-primary);
+  color: var(--pp-color-on-primary);
+  font-weight: 780;
+}
+
+.pp-button-primary:hover:not(:disabled) {
+  background: #6fe3d8;
+}
+
+.pp-button-danger {
+  border-color: #73454f;
+  background: #33242e;
+  color: var(--pp-color-danger);
+}
+
+.pp-input {
+  box-sizing: border-box;
+  min-height: var(--pp-control-height);
+  padding: 8px 12px;
+  border-color: #344155;
+  background: var(--pp-color-field);
+  font-size: 13px;
+}
+
+.pp-input::placeholder {
+  color: #65788e;
+}
+
+.pp-input:focus-visible {
+  border-color: var(--pp-color-primary);
+}
+
+.pp-check {
+  color: #c8d6e4;
+  font-size: 12px;
+}
+
+.pp-check input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--pp-color-primary);
+}
+
+.pp-fieldset {
+  padding: 14px 16px;
+  border-color: var(--pp-color-border);
+  border-radius: 8px;
+  background: #18202b;
+}
+
+.pp-suggestion {
+  border-color: var(--pp-color-border);
+  background: var(--pp-color-field);
+  font-size: 13px;
+}
+
+/* Badges: neutral by default; session status badges get a tone. */
+.pp-badge {
+  padding: 3px 8px;
+  border-radius: 5px;
+  background: var(--pp-tone-neutral-bg);
+  color: var(--pp-tone-neutral-fg);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.01em;
+  vertical-align: middle;
+}
+
+.pp-badge[data-status='draft'] {
+  background: var(--pp-tone-amber-bg);
+  color: var(--pp-tone-amber-fg);
+}
+
+.pp-badge[data-status='ready'] {
+  background: var(--pp-tone-teal-bg);
+  color: var(--pp-tone-teal-fg);
+}
+
+.pp-badge[data-status='active'] {
+  background: var(--pp-tone-green-bg);
+  color: var(--pp-tone-green-fg);
+}
+
+.pp-badge[data-status='paused'] {
+  background: var(--pp-tone-amber-bg);
+  color: var(--pp-tone-amber-fg);
+}
+
+.pp-badge[data-status='completed'] {
+  background: var(--pp-tone-blue-bg);
+  color: var(--pp-tone-blue-fg);
+}
+
+.pp-badge[data-status='cancelled'] {
+  background: var(--pp-tone-red-bg);
+  color: var(--pp-tone-red-fg);
+}
+
+/* Avatars */
+.pp-avatar-initial {
+  background: #315fa0;
+  color: #eaf4ff;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+/* Setup stepper */
+.pp-steps {
+  gap: var(--pp-space-1);
+  padding: 8px 10px;
+  border: 1px solid var(--pp-color-border);
+  border-radius: 8px;
+  background: #18202b;
+}
+
+.pp-step {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pp-space-2);
+  min-height: var(--pp-control-height);
+  border-color: transparent;
+  color: #8ea0b5;
+  font-size: 12px;
+  font-weight: 620;
+}
+
+.pp-step:hover {
+  color: var(--pp-color-text);
+}
+
+.pp-step[aria-current='step'] {
+  border-color: transparent;
+  color: #e7f8f5;
+}
+
+.pp-step-number {
+  width: 24px;
+  height: 24px;
+  background: #334051;
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.pp-step[aria-current='step'] .pp-step-number {
+  background: var(--pp-color-primary);
+  color: var(--pp-color-on-primary);
+}
+
+/* Segmented toggles that reuse .pp-step with aria-pressed */
+.pp-step[aria-pressed='true'] {
+  border-color: #37736b;
+  background: var(--pp-color-primary-subtle);
+  color: #85ebe2;
+}
+
+/* Deck preview cards */
+.pp-chips {
+  gap: var(--pp-space-2);
+}
+
+.pp-chip {
+  display: grid;
+  place-items: center;
+  min-width: 43px;
+  min-height: 59px;
+  padding: 0 var(--pp-space-2);
+  border-color: #466071;
+  border-radius: 7px;
+  background: #1a2836;
+  box-shadow: 0 3px 0 #111721;
+  color: #f2f7ff;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+/* Notes and validation messages */
+.pp-issue {
+  padding: 10px 14px;
+  border: 1px solid #43636a;
+  border-left-width: 3px;
+  border-left-color: var(--pp-color-primary);
+  border-radius: 8px;
+  background: #1b3439;
+  color: #a9dde0;
+  font-size: 12px;
+}
+
+.pp-issue-error {
+  border-color: #754651;
+  border-left-color: var(--pp-color-danger);
+  background: #352630;
+  color: #ffc5cb;
+}
+
+.pp-issue-warning {
+  border-color: #73553f;
+  border-left-color: var(--pp-color-highlight);
+  background: #352b27;
+  color: #f4c68f;
+}
+
+.pp-card[role='note'] {
+  border-color: #43636a;
+  background: #1b3439;
+  color: #a9dde0;
+}
+
+.pp-summary {
+  gap: 10px var(--pp-space-6);
+  font-size: 12px;
+}
+
+.pp-empty {
+  padding: var(--pp-space-8) var(--pp-space-4);
+}
+
+.pp-empty-title {
+  font-size: 15px;
+}

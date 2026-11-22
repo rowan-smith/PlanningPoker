@@ -426,3 +426,181 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+/* Sidebar shell (App `sidebar` option). Colours come from tokens, so any theme can restyle it. */
+.pp-shell {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+}
+
+/* No fixed height or sticky: Forge sizes its iframe to the content, so the sidebar just stretches. */
+.pp-sidebar {
+  display: flex;
+  flex-direction: column;
+  padding: var(--pp-space-4) var(--pp-space-3);
+  border-right: 1px solid var(--pp-color-border);
+  background: var(--pp-color-surface);
+  box-sizing: border-box;
+}
+
+.pp-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--pp-space-3);
+  padding: 0 var(--pp-space-2) var(--pp-space-4);
+  border-bottom: 1px solid var(--pp-color-border);
+}
+
+.pp-brand-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  border-radius: var(--pp-radius-sm);
+  background: var(--pp-color-primary);
+  color: var(--pp-color-on-primary);
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.pp-brand-name {
+  margin: 0;
+  font-weight: 700;
+}
+
+.pp-brand-sub {
+  margin: 0;
+  color: var(--pp-color-text-muted);
+  font-size: var(--pp-font-size-small);
+}
+
+.pp-sidebar-section {
+  margin: var(--pp-space-6) var(--pp-space-3) var(--pp-space-2);
+  color: var(--pp-color-text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.pp-sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pp-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pp-sidebar-link {
+  display: flex;
+  align-items: center;
+  gap: var(--pp-space-3);
+  width: 100%;
+  min-height: 44px;
+  padding: 0 var(--pp-space-3);
+  border: none;
+  border-radius: var(--pp-radius-sm);
+  background: transparent;
+  color: var(--pp-color-text-muted);
+  font: inherit;
+  font-size: var(--pp-font-size-small);
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--pp-motion-fast);
+}
+
+.pp-sidebar-link:hover {
+  background: var(--pp-color-surface-raised);
+  color: var(--pp-color-text);
+}
+
+.pp-sidebar-link[aria-current='page'] {
+  background: var(--pp-color-primary-subtle, var(--pp-color-surface-raised));
+  color: var(--pp-color-primary);
+  font-weight: 700;
+}
+
+.pp-sidebar-link:focus-visible {
+  outline: none;
+  box-shadow: var(--pp-focus-ring);
+}
+
+.pp-sidebar-glyph {
+  width: 18px;
+  text-align: center;
+  font-size: 16px;
+}
+
+.pp-sidebar-footer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pp-space-1);
+  margin-top: auto;
+  padding: var(--pp-space-4) var(--pp-space-2) 0;
+  border-top: 1px solid var(--pp-color-border);
+}
+
+.pp-sidebar-user {
+  margin: 0;
+  font-size: var(--pp-font-size-small);
+  font-weight: 600;
+}
+
+.pp-status-dot {
+  color: var(--pp-color-success, var(--pp-color-primary));
+  font-size: 10px;
+}
+
+.pp-shell-content {
+  min-width: 0;
+  padding: var(--pp-space-4) var(--pp-space-8) var(--pp-space-8);
+}
+
+.pp-crumbs {
+  margin: 0 0 var(--pp-space-2);
+  color: var(--pp-color-text-muted);
+  font-size: 12px;
+}
+
+.pp-crumbs span {
+  padding: 0 var(--pp-space-2);
+}
+
+/* Phones: the sidebar becomes a scrollable bar above the content. */
+@media (max-width: 720px) {
+  .pp-shell {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto 1fr;
+  }
+
+  .pp-sidebar {
+    border-right: none;
+    border-bottom: 1px solid var(--pp-color-border);
+  }
+
+  .pp-sidebar-section,
+  .pp-sidebar-footer {
+    display: none;
+  }
+
+  .pp-brand {
+    padding-bottom: var(--pp-space-3);
+  }
+
+  .pp-sidebar-nav {
+    flex-direction: row;
+    margin-top: var(--pp-space-3);
+    overflow-x: auto;
+  }
+
+  .pp-sidebar-link {
+    white-space: nowrap;
+  }
+
+  .pp-shell-content {
+    padding: var(--pp-space-4);
+  }
+}

@@ -62,7 +62,7 @@ export function SessionBuilder({ api, sessionId, onBack, onPublished }: SessionB
         <>
           <h2 id="pp-builder-title" className="pp-page-title">
             {state.value.session.name}
-            <span className="pp-badge pp-badge-gap">
+            <span className="pp-badge pp-badge-gap" data-status={state.value.session.status}>
               {STATUS_LABELS[state.value.session.status]}
             </span>
           </h2>
