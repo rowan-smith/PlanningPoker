@@ -10,6 +10,7 @@ Collaborative estimation for agile teams, built as a platform-independent TypeSc
 | 2 — Teams and permissions | Done | No — needs a Jira dev site with real users |
 | 3 — Session builder       | Done | No — needs a Jira dev site                 |
 | 4 — Jira ticket import    | Done | No — needs real Jira issues on a dev site  |
+| 5 — Voting and realtime   | Done | No — needs a dev site with several users   |
 | Voting engine (for M3–M6) | Done | Domain + application only; scenarios A–J   |
 
 ## Commands
@@ -38,7 +39,7 @@ Data resets on reload. `http://localhost:5173/` (without `dev.html`) is the real
 
 ## Public demo (GitHub Pages)
 
-`.github/workflows/pages.yml` publishes the same in-browser demo as a static site on every push to `main` (or run it by hand from the Actions tab). It runs `npm run check` first and only publishes if that passes. The demo shows a banner and a switcher for viewing it as each sample person; it never calls Jira and stores nothing outside the visitor's browser.
+`.github/workflows/pages.yml` publishes the same in-browser demo as a static site on every push to `main` (or run it by hand from the Actions tab). It runs `npm run check` first and only publishes if that passes. The demo shows a banner, a switcher for viewing it as each sample person, and a **Simulate teammates voting** button so one visitor can watch a round reveal; it never calls Jira and stores nothing outside the visitor's browser.
 
 One-time setup after pushing the repository to GitHub:
 

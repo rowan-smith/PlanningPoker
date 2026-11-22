@@ -23,7 +23,7 @@ import {
 import type { BackendServices } from './handlers';
 import { createHandlers } from './handlers';
 import { consoleLogger } from './logger';
-import { pendingRealtimePublisher } from './pending-adapters';
+import { ForgeRealtimePublisher } from './realtime';
 
 interface ForgeContext {
   readonly accountId?: string;
@@ -38,7 +38,7 @@ const shared = {
   participants: new ForgeParticipantRepository(store),
   votes: new ForgeVoteRepository(store),
   audit: new ForgeAuditRepository(store),
-  events: pendingRealtimePublisher,
+  events: new ForgeRealtimePublisher(consoleLogger),
   atomic: new ForgeAtomicOperation(),
   clock: { now: () => new Date() },
   ids: { next: () => crypto.randomUUID() },

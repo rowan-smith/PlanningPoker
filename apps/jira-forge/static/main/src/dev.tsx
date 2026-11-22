@@ -7,7 +7,7 @@ import '@planning-poker/ui/styles.css';
 import './demo.css';
 
 import { App } from '@planning-poker/ui';
-import { StrictMode } from 'react';
+import { StrictMode, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 
 import { createDevApi } from './dev-backend';
@@ -20,7 +20,15 @@ const ROLES = [
   { key: 'observer', label: 'Lee — invited observer' },
 ] as const;
 
-function DemoBanner({ current }: { readonly current: string }) {
+function DemoBanner({
+  current,
+  onSimulate,
+}: {
+  readonly current: string;
+  readonly onSimulate: () => Promise<number>;
+}) {
+  const [message, setMessage] = useState<string | null>(null);
+
   return (
     <aside className="pp-demo" aria-label="Demo">
       <p className="pp-demo-text">
@@ -42,6 +50,26 @@ function DemoBanner({ current }: { readonly current: string }) {
           ))}
         </ul>
       </nav>
+      <div className="pp-demo-simulate">
+        <button
+          type="button"
+          className="pp-demo-role"
+          onClick={() => {
+            void onSimulate().then((votes) => {
+              setMessage(
+                votes === 0
+                  ? 'Nobody else is waiting to vote right now.'
+                  : `${String(votes)} teammate vote${votes === 1 ? '' : 's'} cast.`,
+              );
+            });
+          }}
+        >
+          Simulate teammates voting
+        </button>
+        <span className="pp-demo-text" role="status">
+          {message}
+        </span>
+      </div>
     </aside>
   );
 }
@@ -56,10 +84,10 @@ const root = container;
 const requested = new URLSearchParams(window.location.search).get('as') ?? 'admin';
 const current = ROLES.some((role) => role.key === requested) ? requested : 'admin';
 
-void createDevApi(window.location.search).then((api) => {
+void createDevApi(window.location.search).then(({ api, simulateTeammates }) => {
   createRoot(root).render(
     <StrictMode>
-      <DemoBanner current={current} />
+      <DemoBanner current={current} onSimulate={simulateTeammates} />
       <App api={api} />
     </StrictMode>,
   );

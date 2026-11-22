@@ -7,14 +7,23 @@ export type Loadable<T> =
   | { readonly status: 'loaded'; readonly value: T }
   | { readonly status: 'failed'; readonly message: string };
 
+export interface LoadOptions {
+  /** On a failed reload, keep showing the last loaded value (background refreshes). */
+  readonly keepLastValueOnError?: boolean;
+}
+
 /** Loads data on mount and whenever `load` changes; `reload` fetches again. */
-export function useLoad<T>(load: () => Promise<T>): {
+export function useLoad<T>(
+  load: () => Promise<T>,
+  options: LoadOptions = {},
+): {
   readonly state: Loadable<T>;
   readonly reload: () => void;
   readonly replace: (value: T) => void;
 } {
   const [state, setState] = useState<Loadable<T>>({ status: 'loading' });
   const [attempt, setAttempt] = useState(0);
+  const keepLastValue = options.keepLastValueOnError === true;
 
   useEffect(() => {
     let cancelled = false;
@@ -27,7 +36,11 @@ export function useLoad<T>(load: () => Promise<T>): {
       },
       (error: unknown) => {
         if (!cancelled) {
-          setState({ status: 'failed', message: errorMessage(error) });
+          setState((current) =>
+            keepLastValue && current.status === 'loaded'
+              ? current
+              : { status: 'failed', message: errorMessage(error) },
+          );
         }
       },
     );
@@ -35,7 +48,7 @@ export function useLoad<T>(load: () => Promise<T>): {
     return () => {
       cancelled = true;
     };
-  }, [load, attempt]);
+  }, [load, attempt, keepLastValue]);
 
   const reload = useCallback(() => {
     setAttempt((current) => current + 1);

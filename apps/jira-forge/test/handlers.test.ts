@@ -141,4 +141,17 @@ describe('resolver handlers', () => {
       error: { code: 'VALIDATION', message: 'Invalid fieldIds.' },
     });
   });
+
+  it('validates votes and keeps ticket progression for moderators', async () => {
+    const { handlers } = setup('member');
+
+    expect(await handlers.submitVote({ sessionId: 's', ticketId: 't' })).toMatchObject({
+      ok: false,
+      error: { code: 'VALIDATION', message: 'Invalid cardId.' },
+    });
+    expect(await handlers.advanceTicket({ sessionId: 'missing' })).toMatchObject({
+      ok: false,
+      error: { code: 'NOT_FOUND' },
+    });
+  });
 });

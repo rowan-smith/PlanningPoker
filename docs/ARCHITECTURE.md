@@ -48,7 +48,9 @@ ESLint enforces these boundaries (`no-restricted-imports` in `eslint.config.mjs`
 - React 19 + Vite for Custom UI; Vitest for tests.
 - Atlassian Forge: `jira:globalPage` Custom UI, `@forge/resolver`, `@forge/bridge`; runtime `nodejs24.x`.
 - Storage: Forge Custom Entity Store via `@forge/kvs`. Versioned records; updates are conditional transactions on `version`. The KVS client exposes no distinct error code for a failed condition, so after a failed write the adapter re-reads the record to decide whether it was a conflict.
-- Planned (later milestones): Forge Realtime (`@forge/realtime` / `realtime` in `@forge/bridge`); Jira field contexts, options and `editmeta` for writing estimates (M7).
+- Realtime: `ForgeRealtimePublisher` (`apps/jira-forge/src/realtime.ts`, `@forge/realtime` `publish`) and `realtime.subscribe` from `@forge/bridge` in the Custom UI, on the channel from `sessionChannel(sessionId)` in contracts. Events are notifications only; the UI re-fetches `getSession` on each event, when the page becomes visible again, and on a slow fallback timer (30 s without realtime, 2 min with). A failed publish is logged and never fails the change.
+- Realtime channels use the app's installation context and are not yet token-restricted. Payloads hold IDs and voted/required counts only, so nothing hidden leaks; restricting subscriptions with `signRealtimeToken` is a hardening item for Milestone 9.
+- Planned (later milestones): Jira field contexts, options and `editmeta` for writing estimates (M7).
 - Future adapters (PostgreSQL, other providers) are added only when needed.
 
 ## Storage notes
@@ -56,7 +58,7 @@ ESLint enforces these boundaries (`no-restricted-imports` in `eslint.config.mjs`
 - A session is one versioned record (roster, skips, tickets, rounds, decisions), so every session change is a single conditional write. Very large sessions (hundreds of tickets with many rounds) may approach Forge's per-value size limit; split tickets into their own records if that happens.
 - Votes are separate records keyed `roundId:userId`. Reveal checks read them by key, because entity-store gets are strongly consistent and index queries are only eventually consistent; reading by the frozen roster guarantees the last voter sees every vote.
 - The roster index (`sessionmember`) is derived from the session record after each save.
-- Stand-ins until later milestones: `pendingRealtimePublisher` (M5, Forge Realtime) in `apps/jira-forge/src/pending-adapters.ts`. `JiraWorkItemProvider.validateUpdate`/`update` reject until M7 adds estimate write-back.
+- `JiraWorkItemProvider.validateUpdate`/`update` reject until M7 adds estimate write-back.
 
 ## Known risk
 

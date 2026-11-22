@@ -50,3 +50,16 @@ body {
   margin: 0;
   background: var(--pp-color-background);
 }
+
+.pp-demo-simulate {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--pp-space-2);
+}
+
+.pp-demo-simulate .pp-demo-role {
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}

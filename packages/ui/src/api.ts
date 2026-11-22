@@ -12,6 +12,12 @@ import type {
  */
 export interface PlanningPokerApi {
   call<K extends ResolverKey>(key: K, payload: ResolverPayload<K>): Promise<ResolverValue<K>>;
+  /**
+   * Notifies `onChange` when something in the session changed. Notifications carry no state:
+   * the UI re-fetches the session view. Returns an unsubscribe function. Optional — without it
+   * the UI falls back to refreshing periodically.
+   */
+  subscribe?(sessionId: string, onChange: () => void): () => void;
 }
 
 /** A failure the backend reported with a safe, user-facing message. */

@@ -14,6 +14,7 @@
     "@forge/api": "^8.5.0",
     "@forge/bridge": "^7.3.0",
     "@forge/kvs": "^2.1.2",
+    "@forge/realtime": "^1.0.3",
     "@forge/resolver": "^2.0.2",
     "@planning-poker/application": "0.1.0",
     "@planning-poker/contracts": "0.1.0",

@@ -6,7 +6,7 @@ import { useAction, useLoad } from '../hooks';
 import { EmptyState } from './EmptyState';
 import { ErrorMessage, Loading } from './Feedback';
 import { SessionBuilder } from './SessionBuilder';
-import { SessionOverview } from './SessionOverview';
+import { PlanningRoom } from './PlanningRoom';
 import { STATUS_LABELS } from '../labels';
 
 export interface SessionsPageProps {
@@ -42,7 +42,7 @@ export function SessionsPage({ api, initialSessionId = null }: SessionsPageProps
   }
 
   if (opened?.mode === 'overview') {
-    return <SessionOverview api={api} sessionId={opened.id} onBack={back} />;
+    return <PlanningRoom api={api} sessionId={opened.id} onBack={back} />;
   }
 
   return (

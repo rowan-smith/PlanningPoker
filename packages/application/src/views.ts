@@ -16,12 +16,14 @@ import type {
   Vote,
 } from '@planning-poker/domain';
 import {
+  activeSessionSkip,
   currentTicket,
   describeParticipant,
   findParticipant,
   isRequiredVoter,
   latestRound,
   orderedTickets,
+  participantStatus,
   roundProgress,
 } from '@planning-poker/domain';
 
@@ -162,11 +164,19 @@ export function sessionView(input: SessionViewInput): SessionView {
     ),
     currentTicketId: session.currentTicketId,
     viewer: {
+      userId: input.viewerId,
       role: viewer?.role ?? null,
+      invitationStatus: viewer?.invitation?.status ?? null,
       canVoteOnCurrentTicket:
         session.status === 'active' &&
         currentRound?.status === 'open' &&
-        isRequiredVoter(currentRound, input.viewerId),
+        isRequiredVoter(currentRound, input.viewerId) &&
+        (viewer === undefined || participantStatus(viewer) === 'joined'),
+      canPreVote:
+        session.status === 'active' &&
+        viewer?.role === 'voter' &&
+        participantStatus(viewer) === 'joined' &&
+        activeSessionSkip(session, input.viewerId) === undefined,
       canModerate: input.canModerate,
     },
   };

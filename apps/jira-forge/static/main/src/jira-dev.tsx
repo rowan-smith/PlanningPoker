@@ -20,7 +20,7 @@ if (container === null) {
 
 const root = container;
 
-void createDevApi(window.location.search).then((api) => {
+void createDevApi(window.location.search).then(({ api }) => {
   createRoot(root).render(
     <StrictMode>
       <App api={api} sidebar={{ platformName: 'Jira Cloud' }} />

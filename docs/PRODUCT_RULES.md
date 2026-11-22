@@ -48,7 +48,9 @@ Source: _Planning Poker — Product & Engineering Specification v2.1_. This file
 17. Imports and searches run as the moderator, so Jira's issue permissions decide what can be imported. Keys that do not exist or are not visible are reported together as "not found, or you do not have access" — Jira does not distinguish them.
 18. Up to 100 keys per import and 5 extra display fields per session. Changing display fields refreshes tickets already in the draft.
 19. Descriptions and field values are stored as plain text (converted from Atlassian Document Format) and shown as text. Rich formatting such as tables and images is reduced to text.
-20. An issue whose key changed since it was typed (moved between projects) is imported under its new key and the old key is also listed as not found.
+20. Moving to the next ticket is available to moderators from Milestone 5 so sessions can progress; the rest of the facilitator controls (skip, restore, revote, override, pause) arrive in Milestone 6.
+21. A voter must join before voting; invited voters still count as required for the round (assumption 1), so the room shows "Invited · waiting" for them.
+22. An issue whose key changed since it was typed (moved between projects) is imported under its new key and the old key is also listed as not found.
 
 ## Open decisions
 

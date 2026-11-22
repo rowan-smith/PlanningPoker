@@ -14,6 +14,7 @@ import type {
 } from '@planning-poker/application';
 import type {
   AuthorizationContext,
+  CardId,
   DeckPreset,
   ParticipationRole,
   SessionId,
@@ -377,6 +378,25 @@ export function createHandlers(services: BackendServices, logger: Logger): Handl
       async (actor, id, payload) =>
         await sessions.setDisplayFields(actor, id, textList(payload, 'fieldIds')),
     ),
+    submitVote: async (payload) =>
+      await run('submitVote', async (actor) => {
+        const id = sessionId(payload);
+        await sessions.submitVote(
+          actor,
+          id,
+          ticketId(payload),
+          asId<CardId>(text(payload, 'cardId', MAX_ID_LENGTH)),
+        );
+
+        return await sessions.getSessionView(actor, id);
+      }),
+    advanceTicket: async (payload) =>
+      await run('advanceTicket', async (actor) => {
+        const id = sessionId(payload);
+        await sessions.advance(actor, id);
+
+        return await sessions.getSessionView(actor, id);
+      }),
     publishSession: async (payload) =>
       await run('publishSession', async (actor) => {
         const id = sessionId(payload);

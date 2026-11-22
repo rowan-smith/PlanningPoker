@@ -114,8 +114,13 @@ export interface TicketView {
 }
 
 export interface SessionViewerView {
+  readonly userId: string;
   readonly role: ParticipationRoleDto | null;
+  /** Null for facilitators and people who are not on the roster. */
+  readonly invitationStatus: InvitationStatusDto | null;
   readonly canVoteOnCurrentTicket: boolean;
+  /** Whether the viewer may vote now on upcoming tickets (hidden until each one reveals). */
+  readonly canPreVote: boolean;
   readonly canModerate: boolean;
 }
 
@@ -366,6 +371,10 @@ export interface PlanningPokerResolvers {
   setDisplayFields: (
     payload: SessionPayload & { readonly fieldIds: readonly string[] },
   ) => SessionBuilderView;
+  submitVote: (
+    payload: SessionPayload & { readonly ticketId: string; readonly cardId: string },
+  ) => SessionView;
+  advanceTicket: (payload: SessionPayload) => SessionView;
   publishSession: (payload: SessionPayload) => SessionView;
   cancelSession: (payload: SessionPayload) => SessionView;
   getSession: (payload: SessionPayload) => SessionView;
@@ -422,8 +431,18 @@ export const RESOLVER_KEYS = [
   'suggestQuery',
   'getDisplayFields',
   'setDisplayFields',
+  'submitVote',
+  'advanceTicket',
   'publishSession',
   'cancelSession',
   'getSession',
   'respondToInvitation',
 ] as const satisfies readonly ResolverKey[];
+
+/**
+ * The realtime channel for one session. Events on it are notifications only: subscribers
+ * re-fetch their own authorized view.
+ */
+export function sessionChannel(sessionId: string): string {
+  return `planning-poker-session-${sessionId}`;
+}

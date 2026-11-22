@@ -4,8 +4,16 @@
  */
 import { SessionService, SettingsService, TeamService } from '@planning-poker/application';
 import { createInMemoryApplication } from '@planning-poker/application/testing';
-import type { ResolverResult } from '@planning-poker/contracts';
-import type { ApplicationRole, TenantId, UserId } from '@planning-poker/domain';
+import type { EventPublisher } from '@planning-poker/application';
+import type { ResolverResult, SessionEvent } from '@planning-poker/contracts';
+import type {
+  ApplicationRole,
+  CardId,
+  SessionId,
+  TenantId,
+  TicketId,
+  UserId,
+} from '@planning-poker/domain';
 import { asId } from '@planning-poker/domain';
 import type { PlanningPokerApi } from '@planning-poker/ui';
 import { unwrap } from '@planning-poker/ui';
@@ -48,7 +56,41 @@ function actorFor(person: { id: string; role: ApplicationRole }) {
   return { userId: asId<UserId>(person.id), tenantId: TENANT, role: person.role };
 }
 
-export async function createDevApi(search: string): Promise<PlanningPokerApi> {
+/** In-process stand-in for Forge Realtime: same notifications, delivered within the page. */
+class LocalEventBus implements EventPublisher {
+  private readonly listeners = new Map<string, Set<() => void>>();
+
+  publish(_tenantId: TenantId, sessionId: SessionId, _event: SessionEvent): Promise<void> {
+    for (const listener of this.listeners.get(sessionId) ?? []) {
+      listener();
+    }
+
+    return Promise.resolve();
+  }
+
+  subscribe(sessionId: string, onChange: () => void): () => void {
+    const listeners = this.listeners.get(sessionId) ?? new Set();
+    listeners.add(onChange);
+    this.listeners.set(sessionId, listeners);
+
+    return () => {
+      listeners.delete(onChange);
+    };
+  }
+}
+
+export interface DevBackend {
+  readonly api: PlanningPokerApi;
+  /**
+   * Demo only: everyone else who still has to vote on the current ticket of each active session
+   * joins (if invited) and votes, so a single visitor can see rounds reveal.
+   */
+  readonly simulateTeammates: () => Promise<number>;
+}
+
+const SIMULATED_CARD_CHOICES = 3;
+
+export async function createDevApi(search: string): Promise<DevBackend> {
   const app = createInMemoryApplication();
   const key = new URLSearchParams(search).get('as') ?? 'admin';
   const me = key in PEOPLE ? PEOPLE[key as keyof typeof PEOPLE] : PEOPLE.admin;
@@ -93,7 +135,8 @@ export async function createDevApi(search: string): Promise<PlanningPokerApi> {
     { fieldId: 'customfield_10016', name: 'Story points', valueType: 'number', options: [] },
   ];
   app.identity.actor = actorFor(me);
-  const deps = { ...app.deps, settings: app.settings };
+  const events = new LocalEventBus();
+  const deps = { ...app.deps, events, settings: app.settings };
   const teams = new TeamService(deps);
   const settings = new SettingsService(deps);
   const sessions = new SessionService(deps);
@@ -121,12 +164,64 @@ export async function createDevApi(search: string): Promise<PlanningPokerApi> {
   await sessions.createDraft(max, { name: 'Sprint 43 planning', teamId: platform.id });
 
   const handlers = createHandlers({ identity: app.identity, teams, settings, sessions }, devLogger);
+  const people = Object.values(PEOPLE);
+
+  const simulateTeammates = async (): Promise<number> => {
+    let votes = 0;
+    const active = (await app.sessions.listForTeams(TENANT, [platform.id])).filter(
+      (session) => session.status === 'active',
+    );
+
+    for (const session of active) {
+      const view = await sessions.getSessionView(max, session.id);
+      const ticketId = view.currentTicketId;
+      const regular = view.deck.filter((card) => card.kind !== 'special').slice(1);
+
+      if (ticketId === null || regular.length === 0) {
+        continue;
+      }
+
+      for (const participant of view.participants) {
+        const person = people.find((entry) => entry.id === participant.userId);
+
+        if (participant.voteStatus !== 'pending' || participant.userId === me.id || !person) {
+          continue;
+        }
+
+        const teammate = actorFor(person);
+
+        if (participant.invitationStatus === 'invited') {
+          await sessions.respondToInvitation(teammate, session.id, 'joined');
+        }
+
+        // Pick among a few neighbouring cards so rounds sometimes agree and sometimes differ.
+        const card =
+          regular[Math.floor(Math.random() * Math.min(SIMULATED_CARD_CHOICES, regular.length))];
+
+        if (card !== undefined) {
+          await sessions.submitVote(
+            teammate,
+            session.id,
+            asId<TicketId>(ticketId),
+            asId<CardId>(card.id),
+          );
+          votes += 1;
+        }
+      }
+    }
+
+    return votes;
+  };
 
   return {
-    async call(key, payload) {
-      const result = (await handlers[key](payload)) as ResolverResult<never>;
+    api: {
+      async call(key, payload) {
+        const result = (await handlers[key](payload)) as ResolverResult<never>;
 
-      return unwrap(result);
+        return unwrap(result);
+      },
+      subscribe: (sessionId, onChange) => events.subscribe(sessionId, onChange),
     },
+    simulateTeammates,
   };
 }
