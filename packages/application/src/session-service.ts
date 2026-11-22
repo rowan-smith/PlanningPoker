@@ -99,6 +99,8 @@ import type {
 import { deckFromChoice, scoringSettingsView } from './decks';
 import { userView } from './team-service';
 import { currentUserView, displayName, sessionSummaryView, sessionView } from './views';
+import type { TicketScope } from './work-item-visibility';
+import { redactRestrictedTickets, redactRestrictedTicketsOf } from './work-item-visibility';
 
 type Access = 'moderate' | 'view';
 
@@ -114,6 +116,16 @@ interface MutationOutcome {
   readonly session: Session;
   readonly audit?: readonly PendingAudit[];
   readonly events?: readonly SessionEvent[];
+  /** Votes a reveal in this change counted; the save checks they are still unchanged. */
+  readonly countedVotes?: readonly Vote[];
+}
+
+interface Settled {
+  readonly session: Session;
+  readonly audit: PendingAudit[];
+  readonly events: SessionEvent[];
+  readonly finalizedTicketId: TicketId | null;
+  readonly countedVotes: readonly Vote[];
 }
 
 const MAX_IMPORT_KEYS = 100;
@@ -637,7 +649,11 @@ export class SessionService {
       }
 
       const vote = castVote(session, { ticketId, userId: actor.userId, cardId, now });
-      await this.deps.votes.upsert(session.tenantId, vote);
+      // Guarded by the session version: a vote never lands in a round revealed meanwhile.
+      await this.deps.votes.upsert(session.tenantId, vote, {
+        sessionId: session.id,
+        sessionVersion: session.version,
+      });
       const round = latestRound(requireTicket(session, ticketId));
       const events: SessionEvent[] = [];
 
@@ -670,6 +686,7 @@ export class SessionService {
         session: revealRound(session, ticketId, votes, now),
         audit: [{ type: 'round.revealed', ticketId }],
         events: [{ type: 'round.revealed', ticketId }],
+        countedVotes: votes,
       };
     });
   }
@@ -799,8 +816,18 @@ export class SessionService {
   // Queries
   // -------------------------------------------------------------------------------------------
 
+  /**
+   * Succeeds only for people who may view the session (NOT_FOUND otherwise, like every other
+   * session read). Used before signing a realtime subscription token.
+   */
+  async authorizeView(actor: AuthorizationContext, sessionId: SessionId): Promise<void> {
+    await this.loadAuthorized(actor, sessionId, 'view');
+  }
+
   async getSessionView(actor: AuthorizationContext, sessionId: SessionId): Promise<SessionView> {
-    const { session, team } = await this.loadAuthorized(actor, sessionId, 'view');
+    const loaded = await this.loadAuthorized(actor, sessionId, 'view');
+    const { team } = loaded;
+    const session = await redactRestrictedTicketsOf(this.deps.workItems, loaded.session);
     const round = currentTicket(session)?.rounds.at(-1);
     const currentRoundVotes = round === undefined ? [] : await this.roundVotes(session, round);
     const latestRoundIds = session.tickets.flatMap((ticket) => {
@@ -830,7 +857,7 @@ export class SessionService {
   }
 
   async getHome(actor: AuthorizationContext): Promise<HomeView> {
-    const { visible } = await this.visibleSessions(actor);
+    const { visible } = await this.visibleSessions(actor, 'current');
     const pending = visible.flatMap(({ session, team }) => {
       const invitation = findParticipant(session, actor.userId)?.invitation;
 
@@ -871,7 +898,7 @@ export class SessionService {
 
   /** Sessions the user can see (drafts only for their moderators) and teams they can plan for. */
   async listSessions(actor: AuthorizationContext): Promise<SessionListView> {
-    const { visible, teams } = await this.visibleSessions(actor);
+    const { visible, teams } = await this.visibleSessions(actor, 'current');
     const order: Readonly<Record<Session['status'], number>> = {
       active: 0,
       paused: 1,
@@ -903,7 +930,9 @@ export class SessionService {
     actor: AuthorizationContext,
     sessionId: SessionId,
   ): Promise<SessionBuilderView> {
-    const { session, team } = await this.loadAuthorized(actor, sessionId, 'moderate');
+    const loaded = await this.loadAuthorized(actor, sessionId, 'moderate');
+    const { team } = loaded;
+    const session = await redactRestrictedTicketsOf(this.deps.workItems, loaded.session);
     const suggestedIds = team.members
       .map((member) => member.userId)
       .filter((userId) => findParticipant(session, userId) === undefined);
@@ -911,7 +940,12 @@ export class SessionService {
       ...session.participants.map((participant) => participant.userId),
       ...suggestedIds,
     ]);
-    const report = checkReadiness(session, team, await this.readinessOptions(session));
+    // Readiness reads the stored session; only the view is redacted.
+    const report = checkReadiness(
+      loaded.session,
+      team,
+      await this.readinessOptions(loaded.session),
+    );
 
     return {
       session: sessionView({
@@ -980,7 +1014,11 @@ export class SessionService {
     );
   }
 
-  private async visibleSessions(actor: AuthorizationContext): Promise<{
+  /** Visible sessions, with ticket content redacted for items the actor cannot see. */
+  private async visibleSessions(
+    actor: AuthorizationContext,
+    ticketScope: TicketScope,
+  ): Promise<{
     visible: { session: Session; team: Team }[];
     teams: readonly Team[];
   }> {
@@ -998,10 +1036,16 @@ export class SessionService {
       ...(await this.deps.sessions.listByIds(actor.tenantId, participantSessionIds)),
     ];
     const unique = [...new Map(candidates.map((session) => [session.id, session])).values()];
-    const visible = unique.flatMap((session) => {
+    const viewable = unique.filter((session) => {
       const team = teamsById.get(session.teamId);
 
-      return team !== undefined && canViewSession(actor, session, team) ? [{ session, team }] : [];
+      return team !== undefined && canViewSession(actor, session, team);
+    });
+    const redacted = await redactRestrictedTickets(this.deps.workItems, viewable, ticketScope);
+    const visible = redacted.flatMap((session) => {
+      const team = teamsById.get(session.teamId);
+
+      return team === undefined ? [] : [{ session, team }];
     });
 
     return { visible, teams };
@@ -1071,8 +1115,11 @@ export class SessionService {
       const settled = await this.settle(outcome.session, now);
       const audit = [...(outcome.audit ?? []), ...settled.audit];
       const events = [...(outcome.events ?? []), ...settled.events];
+      const countedVotes = [...(outcome.countedVotes ?? []), ...settled.countedVotes];
       const saved =
-        settled.session === session ? session : await this.deps.sessions.save(settled.session);
+        settled.session === session
+          ? session
+          : await this.deps.sessions.save(settled.session, { countedVotes });
 
       if (saved !== session) {
         await this.deps.participants.replaceForSession(saved);
@@ -1101,18 +1148,16 @@ export class SessionService {
   }
 
   /** Reveals the current round once complete, and auto-finalizes unanimous results if enabled. */
-  private async settle(
-    session: Session,
-    now: Date,
-  ): Promise<{
-    session: Session;
-    audit: PendingAudit[];
-    events: SessionEvent[];
-    finalizedTicketId: TicketId | null;
-  }> {
+  private async settle(session: Session, now: Date): Promise<Settled> {
     const ticket = currentTicket(session);
     const round = ticket === undefined ? undefined : latestRound(ticket);
-    const nothing = { session, audit: [], events: [], finalizedTicketId: null };
+    const nothing: Settled = {
+      session,
+      audit: [],
+      events: [],
+      finalizedTicketId: null,
+      countedVotes: [],
+    };
 
     if (ticket === undefined || round?.status !== 'open') {
       return nothing;
@@ -1129,7 +1174,7 @@ export class SessionService {
     let updated = revealRound(session, ticket.id, votes, now);
 
     if (!canAutoFinalize(updated, ticket.id)) {
-      return { session: updated, audit, events, finalizedTicketId: null };
+      return { session: updated, audit, events, finalizedTicketId: null, countedVotes: votes };
     }
 
     updated = finalizeConsensus(updated, ticket.id, null, now);
@@ -1159,11 +1204,12 @@ export class SessionService {
           audit: [...audit, ...next.audit],
           events: [...events, ...next.events],
           finalizedTicketId: next.finalizedTicketId,
+          countedVotes: [...votes, ...next.countedVotes],
         };
       }
     }
 
-    return { session: updated, audit, events, finalizedTicketId: ticket.id };
+    return { session: updated, audit, events, finalizedTicketId: ticket.id, countedVotes: votes };
   }
 
   /** Auto-advance applies only to automatic finalization, when enabled, after a successful write. */
@@ -1249,11 +1295,12 @@ export class SessionService {
       const audit: PendingAudit[] = [
         { type: 'sync.completed', ticketId, system: true, details: { outcome: result.status } },
       ];
-      let next: Awaited<ReturnType<SessionService['settle']>> = {
+      let next: Settled = {
         session: advanced,
         audit: [],
         events: [],
         finalizedTicketId: null,
+        countedVotes: [],
       };
 
       if (advanced !== completed) {
@@ -1266,7 +1313,9 @@ export class SessionService {
         next = await this.settle(advanced, now);
       }
 
-      const saved = await this.deps.sessions.save(next.session);
+      const saved = await this.deps.sessions.save(next.session, {
+        countedVotes: next.countedVotes,
+      });
       await this.deps.audit.append(
         [...audit, ...next.audit].map((entry) =>
           auditEvent(this.deps, {

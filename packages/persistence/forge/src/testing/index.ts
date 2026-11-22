@@ -1,7 +1,15 @@
 /* eslint-disable @typescript-eslint/no-unnecessary-type-parameters -- storage returns untyped JSON; the type parameter names the record type the caller expects. */
 import { ConcurrencyConflict } from '@planning-poker/application';
 
-import type { EntityPage, EntityStore, IndexValue, VersionedRecord } from '../entity-store';
+import type {
+  EntityPage,
+  EntityStore,
+  IndexValue,
+  TransactionCheck,
+  TransactionWrite,
+  VersionedRecord,
+} from '../entity-store';
+import { MAX_TRANSACTION_OPERATIONS, satisfies } from '../entity-store';
 
 /** Round-trips through JSON, like values written to Forge storage. */
 function clone(value: unknown): unknown {
@@ -68,6 +76,38 @@ export class InMemoryEntityStore implements EntityStore {
 
   delete(entity: string, key: string): Promise<void> {
     this.records.delete(`${entity}/${key}`);
+
+    return Promise.resolve();
+  }
+
+  /** All-or-nothing, with Forge's limits on operation count and repeated keys. */
+  transact(
+    writes: readonly TransactionWrite[],
+    checks: readonly TransactionCheck[],
+  ): Promise<void> {
+    const keys = [...writes, ...checks].map((operation) => `${operation.entity}/${operation.key}`);
+
+    if (keys.length > MAX_TRANSACTION_OPERATIONS || new Set(keys).size !== keys.length) {
+      return Promise.reject(new Error('Invalid transaction.'));
+    }
+
+    const versionsHold = writes.every(
+      (write) =>
+        write.expectedVersion === undefined ||
+        (this.records.get(`${write.entity}/${write.key}`) as VersionedRecord | undefined)
+          ?.version === write.expectedVersion,
+    );
+    const checksHold = checks.every((check) =>
+      satisfies(this.records.get(`${check.entity}/${check.key}`), check),
+    );
+
+    if (!versionsHold || !checksHold) {
+      return Promise.reject(new ConcurrencyConflict());
+    }
+
+    for (const write of writes) {
+      this.records.set(`${write.entity}/${write.key}`, clone(write.value));
+    }
 
     return Promise.resolve();
   }

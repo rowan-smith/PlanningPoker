@@ -13,7 +13,7 @@ import type {
   WorkItemUpdateRequest,
 } from '@planning-poker/application';
 import type { WorkItemReference } from '@planning-poker/domain';
-import { DomainError } from '@planning-poker/domain';
+import { DomainError, workItemKey } from '@planning-poker/domain';
 
 import { fieldValueToText, richTextToPlain } from './adf';
 import { JiraFieldWriter, jiraFieldValue } from './jira-field-writer';
@@ -38,6 +38,22 @@ const HTTP_OK_MIN = 200;
 const HTTP_OK_MAX = 299;
 const ISSUE_KEY = /^[A-Z][A-Z0-9_]*-[1-9]\d*$/;
 const CORE_FIELDS = ['summary', 'description', 'issuetype', 'status'];
+/** How long a visibility answer is reused for the same user and issue. */
+export const VISIBILITY_CACHE_MS = 30_000;
+const VISIBILITY_CACHE_MAX_ENTRIES = 5000;
+
+/**
+ * Visibility answers per installation, user and issue. Module-level so a warm Forge function
+ * instance skips repeated checks while a planning room re-fetches its view on every event. Keys
+ * include the installation and account, so instances shared between installations never mix
+ * answers.
+ */
+const visibilityCache = new Map<string, { readonly visible: boolean; readonly until: number }>();
+
+/** For tests. */
+export function clearVisibilityCache(): void {
+  visibilityCache.clear();
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -67,6 +83,9 @@ function issueUrl(self: unknown, key: string): string | null {
 export interface JiraWorkItemContext {
   /** Identifies the Jira site (the Forge installation) in provider-neutral references. */
   readonly installationId: string;
+  /** The calling user (from Forge's context). Without it, visibility answers are not cached. */
+  readonly accountId?: string | undefined;
+  readonly now?: () => number;
 }
 
 /**
@@ -274,6 +293,80 @@ export class JiraWorkItemProvider implements WorkItemProvider {
         ),
       },
     };
+  }
+
+  /**
+   * Asks Jira, as the calling user, which of these issues they can browse: bulkfetch silently
+   * omits issues that are missing or not visible. Only the issue ID is requested.
+   */
+  async visibleItems(items: readonly WorkItemReference[]): Promise<ReadonlySet<string>> {
+    const now = (this.context.now ?? Date.now)();
+    const own = items.filter(
+      (item) =>
+        item.provider === JIRA_PROVIDER && item.installationId === this.context.installationId,
+    );
+    const visibleIds = new Set<string>();
+    const unknown: string[] = [];
+
+    for (const itemId of new Set(own.map((item) => item.itemId))) {
+      const cached = this.cacheKey(itemId);
+      const entry = cached === null ? undefined : visibilityCache.get(cached);
+
+      if (entry !== undefined && entry.until > now) {
+        if (entry.visible) {
+          visibleIds.add(itemId);
+        }
+      } else {
+        unknown.push(itemId);
+      }
+    }
+
+    for (let start = 0; start < unknown.length; start += BULK_FETCH_LIMIT) {
+      const chunk = unknown.slice(start, start + BULK_FETCH_LIMIT);
+      const body = await this.json(route`/rest/api/3/issue/bulkfetch`, 'bulkfetch', {
+        method: 'POST',
+        body: { issueIdsOrKeys: chunk, fields: ['summary'] },
+      });
+      const returned = new Set(
+        (isRecord(body) && Array.isArray(body.issues) ? body.issues : []).flatMap(
+          (issue: unknown) => (isRecord(issue) && typeof issue.id === 'string' ? [issue.id] : []),
+        ),
+      );
+
+      for (const itemId of chunk) {
+        const visible = returned.has(itemId);
+
+        if (visible) {
+          visibleIds.add(itemId);
+        }
+
+        this.remember(itemId, visible, now);
+      }
+    }
+
+    return new Set(
+      own.filter((item) => visibleIds.has(item.itemId)).map((item) => workItemKey(item)),
+    );
+  }
+
+  private cacheKey(itemId: string): string | null {
+    const { accountId, installationId } = this.context;
+
+    return accountId === undefined ? null : `${installationId}|${accountId}|${itemId}`;
+  }
+
+  private remember(itemId: string, visible: boolean, now: number): void {
+    const key = this.cacheKey(itemId);
+
+    if (key === null) {
+      return;
+    }
+
+    if (visibilityCache.size >= VISIBILITY_CACHE_MAX_ENTRIES) {
+      visibilityCache.clear();
+    }
+
+    visibilityCache.set(key, { visible, until: now + VISIBILITY_CACHE_MS });
   }
 
   private async loadFields(): Promise<readonly ExternalField[]> {

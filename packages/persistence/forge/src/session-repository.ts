@@ -1,11 +1,12 @@
-import type { SessionRepository } from '@planning-poker/application';
+import type { SessionRepository, SessionSaveOptions } from '@planning-poker/application';
 import type { Session, SessionId, TeamId, TenantId } from '@planning-poker/domain';
 
-import type { EntityStore } from './entity-store';
-import { queryAll } from './entity-store';
+import type { EntityStore, TransactionCheck } from './entity-store';
+import { MAX_TRANSACTION_OPERATIONS, queryAll } from './entity-store';
 import type { Json } from './json-dates';
 import { reviveDates, toJson } from './json-dates';
 import { ENTITIES } from './schema';
+import { voteKey } from './vote-repository';
 
 /**
  * The whole session aggregate (roster, skips, tickets, rounds, decisions) in one versioned record,
@@ -33,6 +34,19 @@ export function toSessionRecord(session: Session): SessionRecord {
   };
 }
 
+/** Each counted vote must still be stored exactly as it was read. */
+function voteChecks(options: SessionSaveOptions): TransactionCheck[] {
+  const unique = new Map(
+    (options.countedVotes ?? []).map((vote) => [voteKey(vote.roundId, vote.userId), vote]),
+  );
+
+  return [...unique].map(([key, vote]) => ({
+    entity: ENTITIES.vote.name,
+    key,
+    equals: { cardId: vote.cardId, submittedAt: vote.submittedAt.getTime() },
+  }));
+}
+
 export function fromSessionRecord(record: SessionRecord): Session {
   return { ...(reviveDates(record.data) as Session), version: record.version };
 }
@@ -50,13 +64,28 @@ export class ForgeSessionRepository implements SessionRepository {
     return record?.tenantId === tenantId ? fromSessionRecord(record) : null;
   }
 
-  async save(session: Session): Promise<Session> {
+  async save(session: Session, options: SessionSaveOptions = {}): Promise<Session> {
     const saved: Session = { ...session, version: session.version + 1 };
     const record = toSessionRecord(saved);
+    const checks = voteChecks(options);
 
     if (session.version === 0) {
       await this.store.create(ENTITIES.session.name, session.id, record);
+    } else if (checks.length > 0 && checks.length < MAX_TRANSACTION_OPERATIONS) {
+      await this.store.transact(
+        [
+          {
+            entity: ENTITIES.session.name,
+            key: session.id,
+            value: record,
+            expectedVersion: session.version,
+          },
+        ],
+        checks,
+      );
     } else {
+      // Rosters of 25+ voters exceed one transaction; the vote guard alone protects them
+      // (see docs/ARCHITECTURE.md, "Concurrency").
       await this.store.replace(ENTITIES.session.name, session.id, record, session.version);
     }
 

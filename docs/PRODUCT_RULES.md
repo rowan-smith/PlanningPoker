@@ -87,7 +87,15 @@ Assumptions:
 38. The audit log is for session moderators (team moderators, facilitators, administrators). Audit views drop any detail that could hold a card choice; the override's chosen estimate is shown on the summary instead.
 39. Anonymous distributions are shown per revealed round, as in the planning room. A round with a single voter therefore shows that voter's choice to anyone who knows they voted — the same as the live room.
 
+## Security and concurrency (Milestone 9)
+
+40. Ticket content (summary, description, type, status, display fields, link) is shown only to people who can browse the issue in Jira themselves; everyone else sees "Restricted work item" with the key, can still vote, and sees the same anonymous results. This applies to the room, builder, home, lists, summaries and reports. If Jira cannot be asked, content is hidden from everyone. Answers are cached for 30 seconds, so a permission change can take that long to show.
+41. A vote that loses a race with the reveal of its round (another vote, or a manual reveal, saved first) is refused with "round revealed" unless it matches the vote already counted (assumption 16); it is never stored without being counted.
+42. When concurrent changes keep colliding past the retries, the request fails with CONFLICT ("Someone else changed this at the same time. Try again.") and nothing is half-saved.
+43. Realtime notifications reach only people who received a subscription token for that session (people who can view it). Someone removed from a session may receive content-free notifications until their token expires.
+
 ## Open decisions
 
 - What value is written to the "additional writable fields"? They are stored and validated but not written yet.
 - Should team members who are not on the roster be able to observe a published session?
+- **Whose Jira permissions write an automatic estimate?** Today the write runs as the person whose vote completed the round (Forge `asUser`). If they cannot edit the issue, the write is recorded as failed and the moderator's Retry writes it as the moderator. Alternatives: defer automatic writes until a moderator acts, or write as the app after checking the moderator's permission (needs `asApp` writes).

@@ -29,7 +29,12 @@ import type {
   UserId,
 } from '@planning-poker/domain';
 import { asId, DECK_PRESETS, DomainError } from '@planning-poker/domain';
-import { DEFAULT_HISTORY_PAGE_SIZE, MAX_HISTORY_PAGE_SIZE } from '@planning-poker/application';
+import {
+  ConcurrencyConflict,
+  DEFAULT_HISTORY_PAGE_SIZE,
+  MAX_HISTORY_PAGE_SIZE,
+} from '@planning-poker/application';
+import { sessionChannel } from '@planning-poker/contracts';
 
 import type { Logger } from './logger';
 
@@ -40,12 +45,22 @@ const MAX_QUERY_LENGTH = 1000;
 const MAX_REASON_LENGTH = 500;
 const SPECIAL_CARDS: readonly SpecialCardType[] = ['infinity', 'unknown', 'coffee'];
 
+/** Signs realtime subscription tokens (Forge: `signRealtimeToken`). */
+export interface RealtimeTokenIssuer {
+  subscribeToken(
+    tenantId: string,
+    sessionId: string,
+  ): Promise<{ readonly token: string; readonly expiresAt: Date }>;
+}
+
 export interface BackendServices {
   readonly identity: IdentityProvider;
   readonly teams: TeamService;
   readonly settings: SettingsService;
   readonly sessions: SessionService;
   readonly reports: ReportService;
+  /** Absent where channels are not restricted (the in-browser preview and demo). */
+  readonly realtimeTokens?: RealtimeTokenIssuer;
 }
 
 export type Handlers = {
@@ -118,20 +133,27 @@ function textRecord(payload: unknown, name: string): Record<string, string> {
   return valid ? Object.fromEntries(entries) : invalid(name);
 }
 
+/** A non-empty identifier of bounded length. */
+function id(payload: unknown, name: string): string {
+  const value = text(payload, name, MAX_ID_LENGTH);
+
+  return value.length > 0 ? value : invalid(name);
+}
+
 function teamId(payload: unknown): TeamId {
-  return asId<TeamId>(text(payload, 'teamId', MAX_ID_LENGTH));
+  return asId<TeamId>(id(payload, 'teamId'));
 }
 
 function userId(payload: unknown): UserId {
-  return asId<UserId>(text(payload, 'userId', MAX_ID_LENGTH));
+  return asId<UserId>(id(payload, 'userId'));
 }
 
 function sessionId(payload: unknown): SessionId {
-  return asId<SessionId>(text(payload, 'sessionId', MAX_ID_LENGTH));
+  return asId<SessionId>(id(payload, 'sessionId'));
 }
 
 function ticketId(payload: unknown): TicketId {
-  return asId<TicketId>(text(payload, 'ticketId', MAX_ID_LENGTH));
+  return asId<TicketId>(id(payload, 'ticketId'));
 }
 
 function role(payload: unknown): ParticipationRole {
@@ -139,7 +161,7 @@ function role(payload: unknown): ParticipationRole {
 }
 
 function cardId(payload: unknown): CardId {
-  return asId<CardId>(text(payload, 'cardId', MAX_ID_LENGTH));
+  return asId<CardId>(id(payload, 'cardId'));
 }
 
 /** A required, non-blank reason (the domain trims and re-checks it). */
@@ -291,6 +313,17 @@ export function createHandlers(services: BackendServices, logger: Logger): Handl
     } catch (error: unknown) {
       if (error instanceof DomainError && ERROR_CODES.has(error.code)) {
         return { ok: false, error: { code: error.code, message: error.message } };
+      }
+
+      // Retries ran out because others kept changing the same record: safe to try again.
+      if (error instanceof ConcurrencyConflict) {
+        return {
+          ok: false,
+          error: {
+            code: 'CONFLICT',
+            message: 'Someone else changed this at the same time. Try again.',
+          },
+        };
       }
 
       logger.error(`Resolver ${key} failed`, error);
@@ -683,6 +716,22 @@ export function createHandlers(services: BackendServices, logger: Logger): Handl
         await sessions.retrySync(actor, id, ticketId(payload), bool(payload, 'confirmOverwrite'));
 
         return await sessions.getSessionView(actor, id);
+      }),
+    // Milestone 9 — security --------------------------------------------------------------------
+    getRealtimeToken: async (payload) =>
+      await run('getRealtimeToken', async (actor) => {
+        const id = sessionId(payload);
+        // Signed only for people who may view the session; NOT_FOUND for everyone else.
+        await sessions.authorizeView(actor, id);
+        const channel = sessionChannel(id);
+
+        if (services.realtimeTokens === undefined) {
+          return { channel, token: null, expiresAt: null };
+        }
+
+        const signed = await services.realtimeTokens.subscribeToken(actor.tenantId, id);
+
+        return { channel, token: signed.token, expiresAt: signed.expiresAt.toISOString() };
       }),
   };
 }

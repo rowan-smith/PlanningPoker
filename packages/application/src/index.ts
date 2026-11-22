@@ -8,3 +8,4 @@ export * from './session-service';
 export * from './settings-service';
 export * from './team-service';
 export * from './views';
+export * from './work-item-visibility';

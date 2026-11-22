@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  ConcurrencyConflict,
   ReportService,
   SessionService,
   SettingsService,
@@ -130,6 +131,31 @@ describe('resolver handlers', () => {
       error: { code: 'INTERNAL', message: 'Something went wrong. Try again.' },
     });
     expect(logged).toEqual(['Resolver listTeams failed No actor configured.']);
+  });
+
+  it('reports conflicts that outlast the retries as CONFLICT, without logging them', async () => {
+    const { app, handlers, logged } = setup('moderator');
+    app.deps.teams.save = () => Promise.reject(new ConcurrencyConflict());
+
+    expect(await handlers.createTeam({ name: 'Alpha', description: null })).toEqual({
+      ok: false,
+      error: {
+        code: 'CONFLICT',
+        message: 'Someone else changed this at the same time. Try again.',
+      },
+    });
+    expect(logged).toEqual([]);
+  });
+
+  it('rejects empty identifiers before they reach a use case', async () => {
+    const { handlers } = setup('moderator');
+
+    for (const payload of [{ sessionId: '' }, { sessionId: 's', ticketId: '' }]) {
+      expect(await handlers.revealRound(payload)).toMatchObject({
+        ok: false,
+        error: { code: 'VALIDATION' },
+      });
+    }
   });
 
   it('uses the server-resolved actor, ignoring identity fields in the payload', async () => {

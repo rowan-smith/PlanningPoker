@@ -4,26 +4,37 @@ Collaborative estimation for agile teams, built as a platform-independent TypeSc
 
 ## Status
 
-| Milestone                 | Code | Accepted                                                   |
-| ------------------------- | ---- | ---------------------------------------------------------- |
-| 1 — Foundation            | Done | No — not yet installed on a Jira dev site                  |
-| 2 — Teams and permissions | Done | No — needs a Jira dev site with real users                 |
-| 3 — Session builder       | Done | No — needs a Jira dev site                                 |
-| 4 — Jira ticket import    | Done | No — needs real Jira issues on a dev site                  |
-| 5 — Voting and realtime   | Done | No — needs a dev site with several users                   |
-| 6 — Facilitator controls  | Done | No — needs a dev site with several users                   |
-| 7 — Jira field write-back | Done | No — needs real Story points / select fields on a dev site |
-| 8 — Reports and history   | Done | No — needs a dev site with real sessions                   |
-| Voting engine (for M3–M6) | Done | Domain + application only; scenarios A–J                   |
+| Milestone                  | Code | Accepted                                                                                                                  |
+| -------------------------- | ---- | ------------------------------------------------------------------------------------------------------------------------- |
+| 1 — Foundation             | Done | No — not yet installed on a Jira dev site                                                                                 |
+| 2 — Teams and permissions  | Done | No — needs a Jira dev site with real users                                                                                |
+| 3 — Session builder        | Done | No — needs a Jira dev site                                                                                                |
+| 4 — Jira ticket import     | Done | No — needs real Jira issues on a dev site                                                                                 |
+| 5 — Voting and realtime    | Done | No — needs a dev site with several users                                                                                  |
+| 6 — Facilitator controls   | Done | No — needs a dev site with several users                                                                                  |
+| 7 — Jira field write-back  | Done | No — needs real Story points / select fields on a dev site                                                                |
+| 8 — Reports and history    | Done | No — needs a dev site with real sessions                                                                                  |
+| 9 — Quality and deployment | Done | No — owner runs the [acceptance checklist](docs/DEPLOYMENT.md#9-acceptance-checklist-jira-development-site) on a dev site |
+| Voting engine (for M3–M6)  | Done | Domain + application only; scenarios A–J                                                                                  |
 
 ## Commands
 
 ```sh
 npm install
 npm run check      # lint, format check, type check, tests
-npm test           # Vitest
+npm test           # Vitest: unit, integration, security and concurrency suites
 npm run build      # Custom UI → apps/jira-forge/static/main/build
+npm run test:e2e:install   # once: Playwright's Chromium
+npm run test:e2e   # builds the demo and runs the Playwright journeys (tests/e2e)
 ```
+
+Test suites:
+
+- `packages/*/test`, `apps/jira-forge/test` — domain rules, use cases, adapters, handlers.
+- `tests/integration` — the whole workflow through the resolver handlers on the Forge repositories and the real Jira adapters over a fake Jira site.
+- `tests/security` — authorization matrix (every resolver × administrator, moderator, member, invited voter, observer, outsider, other installation), payload fuzzing, vote privacy, Jira content and log hygiene.
+- `tests/concurrency` — races under Forge semantics (no lock, conditional writes) with an interleaving store.
+- `tests/e2e` — Playwright against the built demo (separate CI job, Chromium only).
 
 ## Running locally with the mock backend
 
@@ -59,26 +70,22 @@ npm run build:demo
 npm run preview:demo --workspace @planning-poker/jira-forge   # http://localhost:4173
 ```
 
-## Deploying to a Jira development site
+## Deploying to Jira
 
-Requires the Forge CLI (`npm install -g @forge/cli`) and an Atlassian developer account.
+See **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**: prerequisites, `forge register` / `deploy` / `install` / `install --upgrade`, environments, scopes, permanent storage schema, logs, rollback, data and privacy, the workspace-bundling risk and its fallback, and the acceptance checklist for every milestone. In short:
 
 ```sh
+npm run build
 cd apps/jira-forge
-forge login
-forge register          # replaces the placeholder app.id in manifest.yml
-npm run build --workspace @planning-poker/jira-forge
+forge register          # once: replaces the placeholder app.id in manifest.yml
 forge deploy
 forge install           # choose Jira and your development site
 ```
 
-Milestones 2–3 add scopes (`storage:app`, `read:jira-user`, `read:jira-work`) and storage entities. On a site where an earlier version is installed, run `forge install --upgrade` and approve the new scopes. Use `forge logs` to see resolver errors.
-
-Then open **Apps → Planning Poker** in Jira.
-
 ## Docs
 
 - [Product rules and assumptions](docs/PRODUCT_RULES.md)
-- [Architecture boundaries](docs/ARCHITECTURE.md)
+- [Architecture boundaries](docs/ARCHITECTURE.md) (including security and concurrency)
+- [Deployment and acceptance checklist](docs/DEPLOYMENT.md)
 - [UI style guide](docs/UI_STYLE.md)
 - [Agent and code-style rules](AGENTS.md)

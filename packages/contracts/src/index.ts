@@ -611,6 +611,19 @@ export interface SessionTicketPayload extends SessionPayload {
   readonly ticketId: string;
 }
 
+/**
+ * What a client needs to subscribe to a session's realtime channel (Milestone 9). The token is
+ * signed by the backend only for people allowed to view the session; events are published with
+ * the same claims, so a subscription without it receives nothing.
+ */
+export interface RealtimeSubscriptionView {
+  readonly channel: string;
+  /** Null when the backend does not restrict channels (the local preview and demo). */
+  readonly token: string | null;
+  /** ISO time the token stops working; request a new one before then. */
+  readonly expiresAt: string | null;
+}
+
 export interface TeamDetailsPayload {
   readonly name: string;
   readonly description: string | null;
@@ -714,6 +727,9 @@ export interface PlanningPokerResolvers {
   retrySync: (
     payload: SessionPayload & { readonly ticketId: string; readonly confirmOverwrite: boolean },
   ) => SessionView;
+
+  // Milestone 9 — security --------------------------------------------------------------------
+  getRealtimeToken: (payload: SessionPayload) => RealtimeSubscriptionView;
 }
 
 export type ResolverKey = keyof PlanningPokerResolvers;
@@ -798,6 +814,8 @@ export const RESOLVER_KEYS = [
   'getFieldMapping',
   'setFieldMapping',
   'retrySync',
+  // Milestone 9 — security
+  'getRealtimeToken',
 ] as const satisfies readonly ResolverKey[];
 
 /**

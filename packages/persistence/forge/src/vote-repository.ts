@@ -1,4 +1,4 @@
-import type { VoteRepository } from '@planning-poker/application';
+import type { VoteGuard, VoteRepository } from '@planning-poker/application';
 import type { CardId, RoundId, TenantId, UserId, Vote } from '@planning-poker/domain';
 import { asId } from '@planning-poker/domain';
 
@@ -17,8 +17,18 @@ export interface VoteRecord {
   readonly submittedAt: number;
 }
 
-function voteKey(roundId: string, userId: string): string {
+export function voteKey(roundId: string, userId: string): string {
   return `${roundId}:${userId}`;
+}
+
+export function toVoteRecord(tenantId: string, vote: Vote): VoteRecord {
+  return {
+    tenantId,
+    roundId: vote.roundId,
+    userId: vote.userId,
+    cardId: vote.cardId,
+    submittedAt: vote.submittedAt.getTime(),
+  };
 }
 
 function fromRecord(record: VoteRecord): Vote {
@@ -37,15 +47,28 @@ export class ForgeVoteRepository implements VoteRepository {
     this.store = store;
   }
 
-  async upsert(tenantId: TenantId, vote: Vote): Promise<void> {
-    const record: VoteRecord = {
-      tenantId,
-      roundId: vote.roundId,
-      userId: vote.userId,
-      cardId: vote.cardId,
-      submittedAt: vote.submittedAt.getTime(),
-    };
-    await this.store.put(ENTITIES.vote.name, voteKey(vote.roundId, vote.userId), record);
+  async upsert(tenantId: TenantId, vote: Vote, guard?: VoteGuard): Promise<void> {
+    const record = toVoteRecord(tenantId, vote);
+    const key = voteKey(vote.roundId, vote.userId);
+
+    if (guard === undefined) {
+      await this.store.put(ENTITIES.vote.name, key, record);
+
+      return;
+    }
+
+    // One transaction: the vote is written only while the session is at the version the voter
+    // read, so it cannot slip into a round that was revealed or restarted in the meantime.
+    await this.store.transact(
+      [{ entity: ENTITIES.vote.name, key, value: record }],
+      [
+        {
+          entity: ENTITIES.session.name,
+          key: guard.sessionId,
+          equals: { version: guard.sessionVersion },
+        },
+      ],
+    );
   }
 
   /** Key lookups, not an index query: entity gets are strongly consistent, queries are not. */

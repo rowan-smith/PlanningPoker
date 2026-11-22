@@ -28,15 +28,22 @@ import {
 import type { BackendServices } from './handlers';
 import { createHandlers } from './handlers';
 import { consoleLogger } from './logger';
-import { ForgeRealtimePublisher } from './realtime';
+import { ForgeRealtimePublisher, ForgeRealtimeTokens } from './realtime';
 
 interface ForgeContext {
   readonly accountId?: string;
   readonly installContext?: string;
 }
 
+const sleep = async (milliseconds: number): Promise<void> => {
+  await new Promise<void>((resolve) => {
+    setTimeout(resolve, milliseconds);
+  });
+};
+
 const store = new KvsEntityStore();
 const settings = new ForgeApplicationSettingsRepository(store);
+const realtimeTokens = new ForgeRealtimeTokens();
 const shared = {
   settings,
   teams: new ForgeTeamRepository(store),
@@ -44,8 +51,8 @@ const shared = {
   participants: new ForgeParticipantRepository(store),
   votes: new ForgeVoteRepository(store),
   audit: new ForgeAuditRepository(store),
-  events: new ForgeRealtimePublisher(consoleLogger),
-  atomic: new ForgeAtomicOperation(),
+  events: new ForgeRealtimePublisher(consoleLogger, realtimeTokens),
+  atomic: new ForgeAtomicOperation(undefined, sleep),
   clock: { now: () => new Date() },
   ids: { next: () => crypto.randomUUID() },
 } satisfies Omit<ApplicationDependencies, 'identity' | 'workItems'>;
@@ -61,7 +68,10 @@ function servicesFor(context: ForgeContext): BackendServices {
     new ForgeJiraUserApi(),
     settings,
   );
-  const workItems = new JiraWorkItemProvider({ installationId: context.installContext });
+  const workItems = new JiraWorkItemProvider({
+    installationId: context.installContext,
+    accountId: context.accountId,
+  });
   const deps: ApplicationDependencies = { ...shared, identity, workItems };
 
   return {
@@ -70,6 +80,7 @@ function servicesFor(context: ForgeContext): BackendServices {
     settings: new SettingsService(deps),
     sessions: new SessionService(deps),
     reports: new ReportService(deps),
+    realtimeTokens,
   };
 }
 

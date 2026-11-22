@@ -115,6 +115,13 @@ export interface WorkItemProvider {
   /** Checks edit permission, the value, and `expectedCurrentValue` (conflict) before a write. */
   validateUpdate(request: WorkItemUpdateRequest): Promise<UpdateValidation>;
   update(request: WorkItemUpdateRequest): Promise<UpdateResult>;
+  /**
+   * Which of these items the calling user may currently see in the provider, as
+   * `workItemKey(reference)` values. Ticket snapshots were captured with the importing
+   * moderator's permissions; views show them only to people who can see the item themselves, so
+   * a session invitation never grants access to work-item content.
+   */
+  visibleItems(items: readonly WorkItemReference[]): Promise<ReadonlySet<string>>;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -147,10 +154,19 @@ export interface TeamRepository {
   listForTenant(tenantId: TenantId): Promise<readonly Team[]>;
 }
 
+export interface SessionSaveOptions {
+  /**
+   * The votes a reveal counted. The save commits only if every one of them is still stored
+   * unchanged, so a vote changed while the round was being revealed is never lost: the save
+   * fails with ConcurrencyConflict and the reveal is retried with the new vote.
+   */
+  readonly countedVotes?: readonly Vote[];
+}
+
 export interface SessionRepository {
   get(tenantId: TenantId, sessionId: SessionId): Promise<Session | null>;
   /** Saves if `session.version` matches the stored version; returns the saved (incremented) copy. */
-  save(session: Session): Promise<Session>;
+  save(session: Session, options?: SessionSaveOptions): Promise<Session>;
   listForTeams(tenantId: TenantId, teamIds: readonly TeamId[]): Promise<readonly Session[]>;
   listByIds(tenantId: TenantId, sessionIds: readonly SessionId[]): Promise<readonly Session[]>;
 }
@@ -162,8 +178,19 @@ export interface ParticipantRepository {
 }
 
 /** Private votes. Only the application reads individual records; clients never do. */
+/** The session version a vote was cast against. */
+export interface VoteGuard {
+  readonly sessionId: SessionId;
+  readonly sessionVersion: number;
+}
+
 export interface VoteRepository {
-  upsert(tenantId: TenantId, vote: Vote): Promise<void>;
+  /**
+   * With a guard, the write commits only while the session is still at `sessionVersion` (else
+   * ConcurrencyConflict), so a vote can never land in a round that was revealed, restarted or
+   * closed after the voter read it.
+   */
+  upsert(tenantId: TenantId, vote: Vote, guard?: VoteGuard): Promise<void>;
   /**
    * Votes in a round from the given voters. Reads by voter so implementations can use strongly
    * consistent key lookups: the reveal check must never miss a vote that was already written.

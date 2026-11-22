@@ -352,6 +352,11 @@ export class FakeWorkItemProvider implements WorkItemProvider {
   nextValidation: UpdateValidation = { status: 'ok' };
   /** One-shot failure for the next write only (e.g. the local preview's "fail next write"). */
   private failNext: string | null = null;
+  /**
+   * Whether the calling user can see an item. Defaults to everything; tests replace it to model
+   * Jira issue permissions (e.g. based on the current actor).
+   */
+  canSee: (reference: WorkItemReference) => boolean = () => true;
 
   /** Field values by item key and field ID, returned as display text when selected. */
   readonly fieldTexts = new Map<string, Readonly<Record<string, string>>>();
@@ -473,6 +478,12 @@ export class FakeWorkItemProvider implements WorkItemProvider {
     }
 
     return Promise.resolve(this.nextValidation);
+  }
+
+  visibleItems(items: readonly WorkItemReference[]): Promise<ReadonlySet<string>> {
+    return Promise.resolve(
+      new Set(items.filter((item) => this.canSee(item)).map((item) => workItemKey(item))),
+    );
   }
 
   update(request: WorkItemUpdateRequest): Promise<UpdateResult> {

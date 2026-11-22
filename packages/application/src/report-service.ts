@@ -52,6 +52,7 @@ import {
 } from './authorization';
 import type { ApplicationDependencies } from './dependencies';
 import { displayName } from './views';
+import { redactRestrictedTickets, redactRestrictedTicketsOf } from './work-item-visibility';
 
 export interface DateRange {
   /** Inclusive start, or null for no lower bound. */
@@ -87,7 +88,7 @@ const VOTE_DETAIL_KEYS: ReadonlySet<string> = new Set([
 
 type ReportDependencies = Pick<
   ApplicationDependencies,
-  'teams' | 'sessions' | 'participants' | 'audit' | 'identity'
+  'teams' | 'sessions' | 'participants' | 'audit' | 'identity' | 'workItems'
 >;
 
 type Users = ReadonlyMap<UserId, UserIdentity>;
@@ -279,7 +280,9 @@ export class ReportService {
     actor: AuthorizationContext,
     sessionId: SessionId,
   ): Promise<SessionReportView> {
-    const { session, team } = await this.loadViewable(actor, sessionId);
+    const loaded = await this.loadViewable(actor, sessionId);
+    const { team } = loaded;
+    const session = await redactRestrictedTicketsOf(this.deps.workItems, loaded.session);
 
     if (isEditable(session)) {
       throw new DomainError(
@@ -492,10 +495,12 @@ export class ReportService {
     range: DateRange,
   ): Promise<Session[]> {
     const sessions = await this.deps.sessions.listForTeams(actor.tenantId, teamIds);
-
-    return sessions
+    const completed = sessions
       .filter((session) => session.status === 'completed' && inRange(session.completedAt, range))
       .sort((a, b) => (b.completedAt?.getTime() ?? 0) - (a.completedAt?.getTime() ?? 0));
+
+    // Reports list ticket titles (disagreements, overrides): only for items the actor can see.
+    return await redactRestrictedTickets(this.deps.workItems, completed);
   }
 
   /** Same rule as the session list: moderated teams' sessions plus the actor's own sessions. */

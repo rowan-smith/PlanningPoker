@@ -139,7 +139,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['**/*.{test,spec}.{ts,tsx}', '**/test/**'],
+    files: ['**/*.{test,spec}.{ts,tsx}', '**/test/**', 'tests/**'],
     rules: {
       '@typescript-eslint/no-magic-numbers': 'off',
     },
