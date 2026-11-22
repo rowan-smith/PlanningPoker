@@ -20,6 +20,7 @@ export * from './components/TicketsStep';
 export * from './components/WritableFieldsSettings';
 export * from './components/FieldMappingStep';
 export * from './components/UserSearch';
+export * from './components/Workspace';
 export * from './hooks';
 export * from './labels';
 export * from './live-session';

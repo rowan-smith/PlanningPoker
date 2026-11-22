@@ -858,3 +858,25 @@
 .pp-round-result {
   margin-top: var(--pp-space-3);
 }
+
+/* Home dashboard ----------------------------------------------------------------------- */
+.pp-home-stats {
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+}
+
+.pp-home-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--pp-space-6);
+  align-items: start;
+}
+
+@media (min-width: 900px) {
+  .pp-home-grid {
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  }
+}
+
+.pp-home-recent {
+  gap: var(--pp-space-4);
+}

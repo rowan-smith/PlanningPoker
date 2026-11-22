@@ -57,6 +57,8 @@ Data resets on reload. `http://localhost:5173/` (without `dev.html`) is the real
 
 `.github/workflows/pages.yml` publishes the same in-browser demo as a static site on every push to `main` (or run it by hand from the Actions tab). It runs `npm run check` first and only publishes if that passes. The demo shows a banner, a switcher for viewing it as each sample person, and a **Simulate teammates voting** button so one visitor can watch a round reveal; it never calls Jira and stores nothing outside the visitor's browser.
 
+The demo (and `dev.html`) use the standalone **SprintDeck** look: App's `workspace` option (top bar, icon sidebar) with `@planning-poker/ui/themes/sprintdeck.css`. Behaviour is the real app's; the dashboard numbers come from the viewer's own sessions and history.
+
 One-time setup after pushing the repository to GitHub:
 
 1. **Settings → Pages → Build and deployment → Source:** choose **GitHub Actions**.

@@ -4,6 +4,7 @@
  * inside Atlassian products, so this entry never imports it. Not part of the Forge build.
  */
 import '@planning-poker/ui/styles.css';
+import '@planning-poker/ui/themes/sprintdeck.css';
 import './demo.css';
 
 import { App } from '@planning-poker/ui';
@@ -115,7 +116,14 @@ void createDevApi(window.location.search).then((backend) => {
         onFailNextWrite={backend.failNextJiraWrite}
         onEditInJira={backend.editInJira}
       />
-      <App api={backend.api} />
+      <App
+        api={backend.api}
+        workspace={{
+          productName: 'SprintDeck',
+          tagline: 'Planning poker & agile estimation',
+          pageLabels: { home: 'Dashboard', reports: 'Analytics' },
+        }}
+      />
     </StrictMode>,
   );
 });

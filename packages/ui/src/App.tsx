@@ -11,6 +11,8 @@ import { SessionHistoryPage } from './components/SessionHistoryPage';
 import { SessionsPage } from './components/SessionsPage';
 import { SettingsPage } from './components/SettingsPage';
 import { TeamsPage } from './components/TeamsPage';
+import type { WorkspaceOptions } from './components/Workspace';
+import { WorkspaceNav, WorkspaceTopBar } from './components/Workspace';
 import { useLoad } from './hooks';
 
 export interface AppProps {
@@ -20,9 +22,14 @@ export interface AppProps {
    * header and button row. Used when a host such as Jira gives the app a whole page.
    */
   readonly sidebar?: { readonly platformName: string };
+  /**
+   * Standalone workspace layout: a top bar (brand, page jump, invitations, current person) and
+   * an icon sidebar. Used by the public demo. Takes precedence over `sidebar`.
+   */
+  readonly workspace?: WorkspaceOptions;
 }
 
-export function App({ api, sidebar }: AppProps) {
+export function App({ api, sidebar, workspace }: AppProps) {
   const [page, setPage] = useState<PageKey>('home');
   /** Bumped on every navigation so pages remount fresh (and re-fetch) when revisited. */
   const [visit, setVisit] = useState(0);
@@ -64,6 +71,34 @@ export function App({ api, sidebar }: AppProps) {
       {page === 'reports' && <ReportsPage api={api} />}
     </main>
   );
+
+  if (workspace !== undefined) {
+    return (
+      <div className="pp-app pp-ws">
+        <h1 className="pp-visually-hidden">Planning Poker</h1>
+        <WorkspaceTopBar
+          options={workspace}
+          home={home.state.status === 'loaded' ? home.state.value : null}
+          onNavigate={(next) => {
+            navigate(next);
+          }}
+        />
+        <div className="pp-ws-body">
+          <WorkspaceNav
+            options={workspace}
+            current={page}
+            onNavigate={(next) => {
+              navigate(next);
+            }}
+          />
+          <div className="pp-ws-content">
+            <p className="pp-ws-eyebrow">{workspace.tagline}</p>
+            {content}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (sidebar !== undefined) {
     return (

@@ -30,13 +30,15 @@
   display: inline-block;
   padding: var(--pp-space-1) var(--pp-space-3);
   border: 1px solid var(--pp-color-border);
-  border-radius: var(--pp-radius-sm);
+  border-radius: 999px;
+  background: var(--pp-color-surface);
   color: var(--pp-color-text);
   text-decoration: none;
 }
 
 .pp-demo-role[aria-current='page'] {
   border-color: var(--pp-color-highlight);
+  background: var(--pp-color-primary-subtle, var(--pp-color-surface));
   color: var(--pp-color-highlight);
   font-weight: 600;
 }
@@ -59,7 +61,6 @@ body {
 }
 
 .pp-demo-simulate .pp-demo-role {
-  background: transparent;
   font: inherit;
   cursor: pointer;
 }
