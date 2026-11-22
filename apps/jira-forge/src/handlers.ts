@@ -102,6 +102,22 @@ function textList(payload: unknown, name: string, maxItems = MAX_LIST_LENGTH): s
   return valid ? (value as string[]) : invalid(name);
 }
 
+/** A string → string map, e.g. card ID → option value. */
+function textRecord(payload: unknown, name: string): Record<string, string> {
+  const value = field(payload, name);
+  const entries = typeof value === 'object' && value !== null ? Object.entries(value) : null;
+  const valid =
+    entries !== null &&
+    !Array.isArray(value) &&
+    entries.length <= MAX_LIST_LENGTH &&
+    entries.every(
+      ([key, entry]) =>
+        key.length <= MAX_ID_LENGTH && typeof entry === 'string' && entry.length <= MAX_ID_LENGTH,
+    );
+
+  return valid ? Object.fromEntries(entries) : invalid(name);
+}
+
 function teamId(payload: unknown): TeamId {
   return asId<TeamId>(text(payload, 'teamId', MAX_ID_LENGTH));
 }
@@ -634,5 +650,39 @@ export function createHandlers(services: BackendServices, logger: Logger): Handl
         'listAuditEvents',
         async (actor) => await reports.listAuditEvents(actor, sessionId(payload)),
       ),
+    // Milestone 7 — Jira fields ---------------------------------------------------------------
+    getFieldAllowlist: async () =>
+      await run('getFieldAllowlist', async (actor) => await settings.getFieldAllowlist(actor)),
+    setFieldAllowlist: async (payload) =>
+      await run(
+        'setFieldAllowlist',
+        async (actor) => await settings.setFieldAllowlist(actor, textList(payload, 'fieldIds')),
+      ),
+    getFieldMapping: async (payload) =>
+      await run(
+        'getFieldMapping',
+        async (actor) => await sessions.getFieldMapping(actor, sessionId(payload)),
+      ),
+    setFieldMapping: async (payload) =>
+      await run('setFieldMapping', async (actor) => {
+        const id = sessionId(payload);
+        const fieldId = field(payload, 'fieldId');
+        await sessions.setFieldMapping(actor, id, {
+          fieldId: fieldId === null ? null : text(payload, 'fieldId', MAX_ID_LENGTH),
+          optionByCardId: textRecord(payload, 'optionByCardId'),
+        });
+
+        return {
+          builder: await sessions.getBuilderView(actor, id),
+          mapping: await sessions.getFieldMapping(actor, id),
+        };
+      }),
+    retrySync: async (payload) =>
+      await run('retrySync', async (actor) => {
+        const id = sessionId(payload);
+        await sessions.retrySync(actor, id, ticketId(payload), bool(payload, 'confirmOverwrite'));
+
+        return await sessions.getSessionView(actor, id);
+      }),
   };
 }

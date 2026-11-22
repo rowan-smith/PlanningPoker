@@ -10,6 +10,7 @@ export type AuditEventType =
   | 'team.archived'
   | 'settings.moderator-assigned'
   | 'settings.moderator-unassigned'
+  | 'settings.writable-fields-changed'
   | 'session.created'
   | 'session.settings-changed'
   | 'session.published'

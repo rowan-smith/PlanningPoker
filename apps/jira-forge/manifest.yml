@@ -17,7 +17,8 @@ permissions:
   scopes:
     - storage:app # Custom Entity Store and KVS
     - read:jira-user # /user/bulk, /user/search
-    - read:jira-work # /mypermissions (administrator check)
+    - read:jira-work # /mypermissions, issue import, /field, /issue/{id}/editmeta
+    - write:jira-work # PUT /issue/{id} (write final estimates)
 app:
   id: ari:cloud:ecosystem::app/00000000-0000-0000-0000-000000000000
   runtime:

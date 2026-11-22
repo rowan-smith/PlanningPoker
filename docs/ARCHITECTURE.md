@@ -50,7 +50,7 @@ ESLint enforces these boundaries (`no-restricted-imports` in `eslint.config.mjs`
 - Storage: Forge Custom Entity Store via `@forge/kvs`. Versioned records; updates are conditional transactions on `version`. The KVS client exposes no distinct error code for a failed condition, so after a failed write the adapter re-reads the record to decide whether it was a conflict.
 - Realtime: `ForgeRealtimePublisher` (`apps/jira-forge/src/realtime.ts`, `@forge/realtime` `publish`) and `realtime.subscribe` from `@forge/bridge` in the Custom UI, on the channel from `sessionChannel(sessionId)` in contracts. Events are notifications only; the UI re-fetches `getSession` on each event, when the page becomes visible again, and on a slow fallback timer (30 s without realtime, 2 min with). A failed publish is logged and never fails the change.
 - Realtime channels use the app's installation context and are not yet token-restricted. Payloads hold IDs and voted/required counts only, so nothing hidden leaks; restricting subscriptions with `signRealtimeToken` is a hardening item for Milestone 9.
-- Planned (later milestones): Jira field contexts, options and `editmeta` for writing estimates (M7).
+- Estimate write-back (M7): `JiraFieldWriter` (`packages/integrations/jira/src/jira-field-writer.ts`) uses `GET /issue/{id}/editmeta` (editability, single-select allowed values), `GET /issue/{id}?fields=…` (current value) and `PUT /issue/{id}`, all `asUser`; scope `write:jira-work`. Field contexts/options endpoints are not used (they need _Administer Jira_ and `manage:jira-configuration`). Error bodies are never logged; only short field messages reach users.
 - Future adapters (PostgreSQL, other providers) are added only when needed.
 
 ## Storage notes
@@ -58,7 +58,7 @@ ESLint enforces these boundaries (`no-restricted-imports` in `eslint.config.mjs`
 - A session is one versioned record (roster, skips, tickets, rounds, decisions), so every session change is a single conditional write. Very large sessions (hundreds of tickets with many rounds) may approach Forge's per-value size limit; split tickets into their own records if that happens.
 - Votes are separate records keyed `roundId:userId`. Reveal checks read them by key, because entity-store gets are strongly consistent and index queries are only eventually consistent; reading by the frozen roster guarantees the last voter sees every vote.
 - The roster index (`sessionmember`) is derived from the session record after each save.
-- `JiraWorkItemProvider.validateUpdate`/`update` reject until M7 adds estimate write-back.
+- The writable-field allowlist lives in the `appsettings` record (`writableFieldIds`); records saved before M7 read as an empty allowlist.
 
 ## Reports (Milestone 8)
 

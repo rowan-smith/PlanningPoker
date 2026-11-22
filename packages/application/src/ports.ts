@@ -35,11 +35,17 @@ export interface QuerySuggestion {
   readonly displayName: string;
 }
 
+export interface ExternalFieldOption {
+  readonly id: string;
+  readonly value: string;
+}
+
 export interface ExternalField {
   readonly fieldId: string;
   readonly name: string;
   readonly valueType: 'number' | 'option' | 'unsupported';
-  readonly options: readonly { readonly id: string; readonly value: string }[];
+  /** May be empty when options depend on the item (see `listFieldOptions`). */
+  readonly options: readonly ExternalFieldOption[];
 }
 
 export interface WorkItemUpdateRequest {
@@ -54,9 +60,17 @@ export interface WorkItemUpdateRequest {
   readonly idempotencyKey: string;
 }
 
+/**
+ * `ok` also covers a field that already holds the requested value (a retry of a write that
+ * landed), so retries never report a conflict with themselves. `failed` is a transient problem
+ * (rate limit, outage) worth retrying.
+ */
 export type UpdateValidation =
   | { readonly status: 'ok' }
-  | { readonly status: 'forbidden' | 'invalid' | 'conflict'; readonly message: string };
+  | {
+      readonly status: 'forbidden' | 'invalid' | 'conflict' | 'failed';
+      readonly message: string;
+    };
 
 export type UpdateResult =
   | { readonly status: 'succeeded' }
@@ -90,6 +104,15 @@ export interface WorkItemProvider {
     fields: WorkItemFieldSelection,
   ): Promise<{ readonly found: readonly ImportedWorkItem[]; readonly missing: readonly string[] }>;
   discoverFields(): Promise<readonly ExternalField[]>;
+  /**
+   * Option values a single-select field accepts on the given items, as the calling user sees
+   * them (options can differ by project and item type). Values are unique by `value`.
+   */
+  listFieldOptions(
+    fieldId: string,
+    items: readonly WorkItemReference[],
+  ): Promise<readonly ExternalFieldOption[]>;
+  /** Checks edit permission, the value, and `expectedCurrentValue` (conflict) before a write. */
   validateUpdate(request: WorkItemUpdateRequest): Promise<UpdateValidation>;
   update(request: WorkItemUpdateRequest): Promise<UpdateResult>;
 }
@@ -163,6 +186,8 @@ export interface ApplicationSettings {
   readonly tenantId: TenantId;
   /** Users granted the application-level moderator role (may create teams). */
   readonly moderatorUserIds: readonly UserId[];
+  /** Work-item fields moderators may write estimates to (the administrator's allowlist). */
+  readonly writableFieldIds: readonly string[];
   readonly version: number;
 }
 

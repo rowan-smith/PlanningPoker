@@ -23,9 +23,13 @@ const ROLES = [
 function DemoBanner({
   current,
   onSimulate,
+  onFailNextWrite,
+  onEditInJira,
 }: {
   readonly current: string;
   readonly onSimulate: () => Promise<number>;
+  readonly onFailNextWrite: () => string;
+  readonly onEditInJira: () => Promise<string>;
 }) {
   const [message, setMessage] = useState<string | null>(null);
 
@@ -66,6 +70,24 @@ function DemoBanner({
         >
           Simulate teammates voting
         </button>
+        <button
+          type="button"
+          className="pp-demo-role"
+          onClick={() => {
+            setMessage(onFailNextWrite());
+          }}
+        >
+          Fail next Jira save
+        </button>
+        <button
+          type="button"
+          className="pp-demo-role"
+          onClick={() => {
+            void onEditInJira().then(setMessage);
+          }}
+        >
+          Edit the field in Jira
+        </button>
         <span className="pp-demo-text" role="status">
           {message}
         </span>
@@ -84,11 +106,16 @@ const root = container;
 const requested = new URLSearchParams(window.location.search).get('as') ?? 'admin';
 const current = ROLES.some((role) => role.key === requested) ? requested : 'admin';
 
-void createDevApi(window.location.search).then(({ api, simulateTeammates }) => {
+void createDevApi(window.location.search).then((backend) => {
   createRoot(root).render(
     <StrictMode>
-      <DemoBanner current={current} onSimulate={simulateTeammates} />
-      <App api={api} />
+      <DemoBanner
+        current={current}
+        onSimulate={backend.simulateTeammates}
+        onFailNextWrite={backend.failNextJiraWrite}
+        onEditInJira={backend.editInJira}
+      />
+      <App api={backend.api} />
     </StrictMode>,
   );
 });

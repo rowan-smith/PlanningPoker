@@ -4,11 +4,13 @@ import type {
   RoundView,
   SessionSummaryView,
   SessionView,
+  SyncView,
   TicketView,
 } from '@planning-poker/contracts';
 import type {
   AuthorizationContext,
   Session,
+  SessionSettings,
   SessionTicket,
   Team,
   UserId,
@@ -25,6 +27,7 @@ import {
   latestRound,
   orderedTickets,
   participantStatus,
+  retryAvailableAt,
   roundProgress,
 } from '@planning-poker/domain';
 
@@ -76,10 +79,30 @@ function roundView(ticket: SessionTicket, votes: readonly Vote[]): RoundView | n
   };
 }
 
+/** Sync details are shown to everyone in the session; they hold no vote information. */
+export function syncView(ticket: SessionTicket, settings: SessionSettings): SyncView {
+  const update = ticket.externalUpdate;
+  const mapping = [settings.destinationField, ...settings.additionalWritableFields].find(
+    (field) => field !== null && field.fieldId === update.fieldId,
+  );
+  const last = update.attempts.at(-1);
+  const retryAt = retryAvailableAt(update);
+
+  return {
+    state: update.state,
+    fieldName: mapping?.fieldName ?? update.fieldId,
+    value: update.value === null ? null : String(update.value),
+    message: last?.message ?? null,
+    attemptCount: update.attempts.length,
+    retryAvailableAt: retryAt === null ? null : retryAt.toISOString(),
+  };
+}
+
 function ticketView(
   ticket: SessionTicket,
   currentRoundVotes: readonly Vote[],
   viewerVotes: readonly Vote[],
+  settings: SessionSettings,
 ): TicketView {
   const round = latestRound(ticket);
   const myVote = viewerVotes.find((vote) => vote.roundId === round?.id);
@@ -106,6 +129,7 @@ function ticketView(
             reason: ticket.decision.reason,
           },
     syncState: ticket.externalUpdate.state,
+    sync: syncView(ticket, settings),
   };
 }
 
@@ -161,6 +185,7 @@ export function sessionView(input: SessionViewInput): SessionView {
         ticket,
         ticket.id === current?.id ? input.currentRoundVotes : [],
         input.viewerVotes,
+        session.settings,
       ),
     ),
     currentTicketId: session.currentTicketId,

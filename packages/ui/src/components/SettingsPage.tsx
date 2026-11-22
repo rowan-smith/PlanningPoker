@@ -6,6 +6,7 @@ import { useAction, useLoad } from '../hooks';
 import { EmptyState } from './EmptyState';
 import { Avatar, ErrorMessage, Loading } from './Feedback';
 import { UserSearch } from './UserSearch';
+import { WritableFieldsSettings } from './WritableFieldsSettings';
 
 export interface SettingsPageProps {
   readonly api: PlanningPokerApi;
@@ -80,6 +81,9 @@ export function SettingsPage({ api }: SettingsPageProps) {
             }}
           />
         </section>
+      )}
+      {state.status === 'loaded' && state.value.canAdminister && (
+        <WritableFieldsSettings api={api} />
       )}
     </section>
   );

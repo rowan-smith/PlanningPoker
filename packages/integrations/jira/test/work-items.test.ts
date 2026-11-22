@@ -366,10 +366,4 @@ describe('JiraWorkItemProvider.discoverFields', () => {
       ['summary', 'unsupported'],
     ]);
   });
-
-  it('does not write estimates yet', async () => {
-    const { provider: jiraProvider } = provider(() => ({ status: 200, body: {} }));
-
-    await expect(jiraProvider.update()).rejects.toMatchObject({ code: 'INVALID_STATE' });
-  });
 });

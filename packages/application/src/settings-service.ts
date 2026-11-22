@@ -1,17 +1,18 @@
-import type { SettingsView } from '@planning-poker/contracts';
+import type { FieldAllowlistView, SettingsView } from '@planning-poker/contracts';
 import type { AuditEventType, AuthorizationContext, UserId } from '@planning-poker/domain';
 import { DomainError, isAdministrator } from '@planning-poker/domain';
 
 import { forbid } from './authorization';
 import type { ApplicationDependencies } from './dependencies';
 import { auditEvent } from './dependencies';
-import type { ApplicationSettings, ApplicationSettingsRepository } from './ports';
+import { allowlistView, validateAllowlist } from './field-mapping';
+import type { ApplicationSettings } from './ports';
 import { userView } from './team-service';
 
 export type SettingsServiceDependencies = Pick<
   ApplicationDependencies,
-  'audit' | 'atomic' | 'clock' | 'ids' | 'identity'
-> & { readonly settings: ApplicationSettingsRepository };
+  'audit' | 'atomic' | 'clock' | 'ids' | 'identity' | 'settings' | 'workItems'
+>;
 
 /** Administrator-only application settings, starting with the application moderator role. */
 export class SettingsService {
@@ -45,6 +46,56 @@ export class SettingsService {
     return await this.change(actor, userId, 'settings.moderator-unassigned', (ids) =>
       ids.filter((id) => id !== userId),
     );
+  }
+
+  /** Number and single-select fields, and which of them sessions may write estimates to. */
+  async getFieldAllowlist(actor: AuthorizationContext): Promise<FieldAllowlistView> {
+    if (!isAdministrator(actor)) {
+      forbid('Only administrators can change settings.');
+    }
+
+    const [settings, fields] = await Promise.all([
+      this.deps.settings.get(actor.tenantId),
+      this.deps.workItems.discoverFields(),
+    ]);
+
+    return allowlistView(fields, settings.writableFieldIds);
+  }
+
+  async setFieldAllowlist(
+    actor: AuthorizationContext,
+    fieldIds: readonly string[],
+  ): Promise<FieldAllowlistView> {
+    if (!isAdministrator(actor)) {
+      forbid('Only administrators can change settings.');
+    }
+
+    const fields = await this.deps.workItems.discoverFields();
+    const writableFieldIds = validateAllowlist(fields, fieldIds);
+    const saved = await this.deps.atomic.run(`settings:${actor.tenantId}`, async () => {
+      const current = await this.deps.settings.get(actor.tenantId);
+      const unchanged =
+        writableFieldIds.length === current.writableFieldIds.length &&
+        writableFieldIds.every((id) => current.writableFieldIds.includes(id));
+
+      if (unchanged) {
+        return current;
+      }
+
+      const next = await this.deps.settings.save({ ...current, writableFieldIds });
+      await this.deps.audit.append([
+        auditEvent(this.deps, {
+          type: 'settings.writable-fields-changed',
+          actor,
+          tenantId: actor.tenantId,
+          details: { fieldIds: writableFieldIds.join(',') },
+        }),
+      ]);
+
+      return next;
+    });
+
+    return allowlistView(fields, saved.writableFieldIds);
   }
 
   private async change(

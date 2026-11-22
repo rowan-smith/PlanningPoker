@@ -10,6 +10,7 @@ import { ErrorMessage, Loading } from './Feedback';
 import type { SessionChange } from './ModeratorPanel';
 import { ModeratorPanel } from './ModeratorPanel';
 import { ParticipantManager } from './ParticipantManager';
+import { SyncIssues, SyncStatus } from './SyncStatus';
 
 export interface PlanningRoomProps {
   readonly api: PlanningPokerApi;
@@ -54,6 +55,7 @@ export function PlanningRoom({ api, sessionId, onBack }: PlanningRoomProps) {
       {live.state.status === 'failed' && <ErrorMessage message={live.state.message} />}
       {live.state.status === 'loaded' && (
         <Room
+          api={api}
           session={live.state.value}
           pending={action.pending}
           error={action.error}
@@ -84,6 +86,7 @@ export function PlanningRoom({ api, sessionId, onBack }: PlanningRoomProps) {
 }
 
 interface RoomProps {
+  readonly api: PlanningPokerApi;
   readonly session: SessionView;
   readonly pending: boolean;
   readonly error: string | null;
@@ -95,6 +98,7 @@ interface RoomProps {
 }
 
 function Room({
+  api,
   session,
   pending,
   error,
@@ -132,6 +136,7 @@ function Room({
             <p className="pp-card pp-muted">There is no current ticket.</p>
           ) : (
             <CurrentTicket
+              api={api}
               session={session}
               ticket={current}
               pending={pending}
@@ -188,6 +193,7 @@ function Room({
             selectedId={preVoteTicketId}
             onSelect={onPreVoteTicket}
           />
+          <SyncIssues api={api} session={session} />
         </aside>
       </div>
     </>
@@ -261,11 +267,13 @@ function ViewerNotice({
 // ---------------------------------------------------------------------------------------------
 
 function CurrentTicket({
+  api,
   session,
   ticket,
   pending,
   onVote,
 }: {
+  readonly api: PlanningPokerApi;
   readonly session: SessionView;
   readonly ticket: TicketView;
   readonly pending: boolean;
@@ -350,6 +358,12 @@ function CurrentTicket({
           {ticket.estimate.reason === null ? '' : ` — ${ticket.estimate.reason}`}
         </p>
       )}
+      <SyncStatus
+        api={api}
+        sessionId={session.id}
+        ticket={ticket}
+        canModerate={session.viewer.canModerate}
+      />
     </section>
   );
 }

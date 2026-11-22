@@ -86,22 +86,63 @@ export function completeSync(
   };
 }
 
-/** Failed and conflicting updates may be retried. A conflict needs explicit overwrite confirmation. */
-export function retrySync(update: ExternalUpdate, confirmOverwrite: boolean): ExternalUpdate {
+/**
+ * How long an attempt may stay in `syncing` before a moderator can retry it. An attempt that
+ * outlives this most likely died mid-write (the process stopped); Forge functions time out long
+ * before it. Retrying is safe because the provider treats a field that already holds the value
+ * as written (idempotent).
+ */
+export const STUCK_SYNC_AFTER_MS = 120_000;
+
+/** When a moderator may retry this update, or `null` when it cannot be retried. */
+export function retryAvailableAt(update: ExternalUpdate): Date | null {
+  const last = update.attempts.at(-1);
+
+  if (update.state === 'failed' || update.state === 'conflict') {
+    return last?.finishedAt ?? last?.startedAt ?? new Date(0);
+  }
+
+  if (update.state === 'syncing' && last !== undefined) {
+    return new Date(last.startedAt.getTime() + STUCK_SYNC_AFTER_MS);
+  }
+
+  return null;
+}
+
+const INTERRUPTED_MESSAGE = 'The previous attempt did not finish.';
+
+/**
+ * Failed and conflicting updates may be retried, and so may an attempt stuck in `syncing` for
+ * longer than STUCK_SYNC_AFTER_MS (it is closed as failed first). A conflict needs explicit
+ * overwrite confirmation. Retries keep the idempotency key.
+ */
+export function retrySync(
+  update: ExternalUpdate,
+  confirmOverwrite: boolean,
+  now: Date,
+): ExternalUpdate {
+  const availableAt = retryAvailableAt(update);
   ensure(
-    update.state === 'failed' || update.state === 'conflict',
+    availableAt !== null,
     'INVALID_STATE',
-    'Only failed or conflicting updates can be retried.',
+    'Only failed, conflicting or interrupted updates can be retried.',
+  );
+  ensure(
+    availableAt.getTime() <= now.getTime(),
+    'INVALID_STATE',
+    'The update is still in progress. Try again in a few minutes.',
   );
   ensure(
     update.state !== 'conflict' || confirmOverwrite,
     'CONFLICT',
     'The external value changed. Confirm overwriting it before retrying.',
   );
+  const closed =
+    update.state === 'syncing' ? completeSync(update, 'failed', INTERRUPTED_MESSAGE, now) : update;
 
   return {
-    ...update,
+    ...closed,
     state: 'pending',
-    overwriteConfirmed: update.overwriteConfirmed || confirmOverwrite,
+    overwriteConfirmed: closed.overwriteConfirmed || confirmOverwrite,
   };
 }

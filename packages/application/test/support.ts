@@ -53,6 +53,15 @@ export const STORY_POINTS: FieldMapping = {
   optionByCardId: {},
 };
 
+/** Sets the administrator's allowlist of writable fields directly in storage. */
+export async function allowFields(
+  app: InMemoryApplication,
+  writableFieldIds: readonly string[],
+): Promise<void> {
+  const current = await app.settings.get(TENANT);
+  await app.settings.save({ ...current, writableFieldIds });
+}
+
 export interface SessionSetup {
   readonly voters?: number;
   readonly observers?: number;
@@ -131,6 +140,11 @@ export async function publishedSession(setup: SessionSetup = {}): Promise<Harnes
       workItem(index + 1, setup.fieldValues),
     ),
   );
+  if (setup.destinationField) {
+    // Only fields on the administrator's allowlist can be written to.
+    await allowFields(app, [setup.destinationField.fieldId]);
+  }
+
   await service.updateSettings(moderator, sessionId, {
     autoFinalize: setup.autoFinalize ?? false,
     autoAdvance: setup.autoAdvance ?? false,

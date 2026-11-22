@@ -25,6 +25,8 @@ Source: _Planning Poker — Product & Engineering Specification v2.1_. This file
 - **Finalization and sync are separate state machines.** A ticket can be finalized while its write fails. Sync: `not-required | pending | syncing | succeeded | failed | conflict`. Conflicts (field changed since import) are never overwritten without explicit moderator confirmation. Retries reuse the decision's idempotency key.
 - **Auto-advance** only after an automatic finalization, when enabled, and only once the write succeeded.
 - Field IDs are discovered from the provider and never hardcoded. Special cards are never written to number fields.
+- **Three separate field concepts:** display-only ticket fields (per session, M4); the administrator's **allowlist of writable fields** (Settings; number and single-select fields only); and each session's **destination mapping** (one allowlisted field, plus card → option for single-select fields). Readiness fails when the destination is not on the allowlist or a regular card has no option.
+- Finalization order: final score → mapping check → allowlist check → edit permission and value check (editmeta) → external-change check (current value vs. the value captured at import or at the last mapping change) → write → record outcome → notify → auto-advance if allowed. The estimate stays final whatever the write outcome.
 - All moderator actions that change requirements, estimates or outcomes are audited.
 
 ## Assumptions (not settled by the spec)
@@ -56,6 +58,12 @@ Source: _Planning Poker — Product & Engineering Specification v2.1_. This file
 25. Manual reveal is offered, but uses the same condition as auto-reveal (every required voter has voted). To reveal without absent voters, the moderator skips them for the ticket.
 26. With auto-finalize off, a moderator accepts a unanimous regular result explicitly. If the destination field cannot take that value, accepting is refused and the moderator overrides instead. Override reasons are limited to 500 characters and stored in the audit log.
 27. Skipping a voter "for this ticket" needs an open round on the current ticket; "for the rest of the session" works at any time while the session runs.
+28. (M7) Single-select options are read from each ticket's Jira edit metadata as the moderator (up to 10 tickets), not from field contexts, which need Jira administrator rights. Cards map to option **values**; writes send `{ "value": … }`, so one mapping works across projects whose contexts share option names.
+29. (M7) A field that already holds the value being written counts as written (no conflict). This makes retries idempotent; Jira edits have no idempotency key.
+30. (M7) A write stuck in `syncing` for 2 minutes (`STUCK_SYNC_AFTER_MS`) is treated as interrupted: a moderator may retry it, which closes the attempt as failed and writes again with the same idempotency key (safe by 29). Before that, retry is refused.
+31. (M7) A field removed from the allowlist after publishing makes later writes fail visibly; publishing is blocked while the mapping points at it.
+32. (M7) Missing edit permission is reported when Jira's edit metadata lists no editable fields; a field missing from it (not on the screen or context) is reported as invalid. HTTP 409/422/429/5xx are recorded as retryable failures; nothing is retried automatically.
+33. (M7) Additional writable fields remain unsupported in the UI; only the destination field is written.
 
 ## Reports and history (Milestone 8)
 
@@ -72,15 +80,14 @@ Definitions used by session summaries, team reports and the application report. 
 
 Assumptions:
 
-23. Summaries are available for any published or cancelled session to anyone who can view the session (the running ones are marked as not final); drafts have none. Summaries of the same session are computed from the stored aggregate on every request, so a completed session's summary never changes.
-24. Session History lists published and cancelled sessions the person can view (assumption 7 applies), filed under completion, else publication, else creation date. Date filters are whole UTC days, inclusive.
-25. Team and application reports count **completed** sessions only, filtered by completion date. Team reports are for the team's moderators and administrators; the application report is for administrators only. Application moderators who do not moderate a team cannot see its report.
-26. "People who took part" in the application report = joined invitees plus facilitators.
-27. The audit log is for session moderators (team moderators, facilitators, administrators). Audit views drop any detail that could hold a card choice; the override's chosen estimate is shown on the summary instead.
-28. Anonymous distributions are shown per revealed round, as in the planning room. A round with a single voter therefore shows that voter's choice to anyone who knows they voted — the same as the live room.
+34. Summaries are available for any published or cancelled session to anyone who can view the session (the running ones are marked as not final); drafts have none. Summaries of the same session are computed from the stored aggregate on every request, so a completed session's summary never changes.
+35. Session History lists published and cancelled sessions the person can view (assumption 7 applies), filed under completion, else publication, else creation date. Date filters are whole UTC days, inclusive.
+36. Team and application reports count **completed** sessions only, filtered by completion date. Team reports are for the team's moderators and administrators; the application report is for administrators only. Application moderators who do not moderate a team cannot see its report.
+37. "People who took part" in the application report = joined invitees plus facilitators.
+38. The audit log is for session moderators (team moderators, facilitators, administrators). Audit views drop any detail that could hold a card choice; the override's chosen estimate is shown on the summary instead.
+39. Anonymous distributions are shown per revealed round, as in the planning room. A round with a single voter therefore shows that voter's choice to anyone who knows they voted — the same as the live room.
 
 ## Open decisions
 
 - What value is written to the "additional writable fields"? They are stored and validated but not written yet.
-- How should a sync left in `syncing` (process died mid-write) be recovered? Needed before Milestone 7.
 - Should team members who are not on the roster be able to observe a published session?

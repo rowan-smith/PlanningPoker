@@ -4,16 +4,17 @@ Collaborative estimation for agile teams, built as a platform-independent TypeSc
 
 ## Status
 
-| Milestone                 | Code | Accepted                                   |
-| ------------------------- | ---- | ------------------------------------------ |
-| 1 — Foundation            | Done | No — not yet installed on a Jira dev site  |
-| 2 — Teams and permissions | Done | No — needs a Jira dev site with real users |
-| 3 — Session builder       | Done | No — needs a Jira dev site                 |
-| 4 — Jira ticket import    | Done | No — needs real Jira issues on a dev site  |
-| 5 — Voting and realtime   | Done | No — needs a dev site with several users   |
-| 6 — Facilitator controls  | Done | No — needs a dev site with several users   |
-| 8 — Reports and history   | Done | No — needs a dev site with real sessions   |
-| Voting engine (for M3–M6) | Done | Domain + application only; scenarios A–J   |
+| Milestone                 | Code | Accepted                                                   |
+| ------------------------- | ---- | ---------------------------------------------------------- |
+| 1 — Foundation            | Done | No — not yet installed on a Jira dev site                  |
+| 2 — Teams and permissions | Done | No — needs a Jira dev site with real users                 |
+| 3 — Session builder       | Done | No — needs a Jira dev site                                 |
+| 4 — Jira ticket import    | Done | No — needs real Jira issues on a dev site                  |
+| 5 — Voting and realtime   | Done | No — needs a dev site with several users                   |
+| 6 — Facilitator controls  | Done | No — needs a dev site with several users                   |
+| 7 — Jira field write-back | Done | No — needs real Story points / select fields on a dev site |
+| 8 — Reports and history   | Done | No — needs a dev site with real sessions                   |
+| Voting engine (for M3–M6) | Done | Domain + application only; scenarios A–J                   |
 
 ## Commands
 
@@ -36,6 +37,8 @@ Open http://localhost:5173/dev.html. The page runs the real resolver handlers an
 - `dev.html?as=moderator` — application moderator: can create teams and manage their own.
 - `dev.html?as=member` — Mia: a member with a pending session invitation.
 - `dev.html?as=sam` / `dev.html?as=observer` — Sam (joined voter) and Lee (invited observer).
+
+The fake Jira has a "Story points" number field (allowed for estimates, and mapped in the published session, which auto-finalizes) and a "T-shirt size" single-select field that Ada can allow in Settings. The demo banner's **Fail next Jira save** and **Edit the field in Jira** buttons show a failed save with Retry and a conflict with "Overwrite Jira value".
 
 Data resets on reload. `http://localhost:5173/` (without `dev.html`) is the real Forge entry and stays blank outside Jira.
 

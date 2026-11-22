@@ -88,6 +88,22 @@ export interface RoundView {
   readonly result: RoundResultView | null;
 }
 
+/** The write of a final estimate to the work item. Independent of the voting state. */
+export interface SyncView {
+  readonly state: SyncStateDto;
+  readonly fieldName: string | null;
+  /** The value being written, as text (a number or an option name). */
+  readonly value: string | null;
+  /** The last attempt's outcome message (failure or conflict reason). */
+  readonly message: string | null;
+  readonly attemptCount: number;
+  /**
+   * When a moderator may retry (ISO time), or null when retrying is not possible. Failed and
+   * conflicting writes can be retried at once; a write stuck in `syncing` only after a timeout.
+   */
+  readonly retryAvailableAt: string | null;
+}
+
 export interface EstimateView {
   readonly label: string;
   readonly kind: 'consensus' | 'override';
@@ -111,6 +127,8 @@ export interface TicketView {
   readonly myVoteCardId: string | null;
   readonly estimate: EstimateView | null;
   readonly syncState: SyncStateDto;
+  /** Where and how the final estimate is being written (Milestone 7). */
+  readonly sync: SyncView;
 }
 
 export interface SessionViewerView {
@@ -280,6 +298,41 @@ export interface FieldOptionView {
 export interface DisplayFieldsView {
   readonly available: readonly FieldOptionView[];
   readonly selectedIds: readonly string[];
+}
+
+/** A work-item field estimates can be written to. */
+export interface WritableFieldView {
+  readonly id: string;
+  readonly name: string;
+  readonly valueType: 'number' | 'option';
+}
+
+/** The administrator's allowlist of fields that sessions may write estimates to. */
+export interface FieldAllowlistView {
+  /** Number and single-select fields discovered from the work-item provider. */
+  readonly available: readonly WritableFieldView[];
+  readonly selectedIds: readonly string[];
+}
+
+export interface DestinationFieldView {
+  readonly fieldId: string;
+  readonly fieldName: string;
+  readonly valueType: 'number' | 'option';
+  /** Card ID → option value, for single-select fields. */
+  readonly optionByCardId: Readonly<Record<string, string>>;
+}
+
+export interface FieldMappingView {
+  /** Allowlisted fields the moderator can choose from. */
+  readonly allowed: readonly WritableFieldView[];
+  readonly destination: DestinationFieldView | null;
+  /** Option values the destination accepts on this session's tickets (single-select only). */
+  readonly options: readonly string[];
+}
+
+export interface FieldMappingResultView {
+  readonly builder: SessionBuilderView;
+  readonly mapping: FieldMappingView;
 }
 
 export interface ImportTicketsView {
@@ -646,6 +699,21 @@ export interface PlanningPokerResolvers {
   getTeamReport: (payload: TeamPayload & DateRangePayload) => TeamReportView;
   getAppReport: (payload: DateRangePayload) => AppReportView;
   listAuditEvents: (payload: SessionPayload) => AuditLogView;
+
+  // Milestone 7 — Jira fields ------------------------------------------------------------------
+  getFieldAllowlist: (payload: EmptyPayload) => FieldAllowlistView;
+  setFieldAllowlist: (payload: { readonly fieldIds: readonly string[] }) => FieldAllowlistView;
+  getFieldMapping: (payload: SessionPayload) => FieldMappingView;
+  /** `fieldId: null` clears the destination. */
+  setFieldMapping: (
+    payload: SessionPayload & {
+      readonly fieldId: string | null;
+      readonly optionByCardId: Readonly<Record<string, string>>;
+    },
+  ) => FieldMappingResultView;
+  retrySync: (
+    payload: SessionPayload & { readonly ticketId: string; readonly confirmOverwrite: boolean },
+  ) => SessionView;
 }
 
 export type ResolverKey = keyof PlanningPokerResolvers;
@@ -724,6 +792,12 @@ export const RESOLVER_KEYS = [
   'getTeamReport',
   'getAppReport',
   'listAuditEvents',
+  // Milestone 7 — Jira fields
+  'getFieldAllowlist',
+  'setFieldAllowlist',
+  'getFieldMapping',
+  'setFieldMapping',
+  'retrySync',
 ] as const satisfies readonly ResolverKey[];
 
 /**

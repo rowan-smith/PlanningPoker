@@ -49,8 +49,20 @@ function mappingIssues(deck: ScoringDeck, mapping: FieldMapping): ReadinessIssue
       ];
 }
 
+export interface ReadinessOptions {
+  /**
+   * The administrator's allowlist of writable field IDs. When given, mappings to fields outside
+   * it are errors. Omit it only where no allowlist applies (e.g. pure domain tests).
+   */
+  readonly writableFieldIds?: readonly string[];
+}
+
 /** Checks everything a moderator must fix (errors) or should know (warnings) before publishing. */
-export function checkReadiness(session: Session, team: Team): ReadinessReport {
+export function checkReadiness(
+  session: Session,
+  team: Team,
+  options: ReadinessOptions = {},
+): ReadinessReport {
   const issues: ReadinessIssue[] = [];
   const add = (code: string, severity: ReadinessSeverity, message: string): void => {
     issues.push({ code, severity, message });
@@ -82,6 +94,17 @@ export function checkReadiness(session: Session, team: Team): ReadinessReport {
     ...settings.additionalWritableFields,
   ]) {
     issues.push(...mappingIssues(settings.deck, mapping));
+
+    if (
+      options.writableFieldIds !== undefined &&
+      !options.writableFieldIds.includes(mapping.fieldId)
+    ) {
+      add(
+        'field-not-allowed',
+        'error',
+        `${mapping.fieldName} is not on the administrator's list of writable fields.`,
+      );
+    }
   }
 
   if (intendedVoterIds(session).length === 0) {
@@ -120,9 +143,14 @@ export function checkReadiness(session: Session, team: Team): ReadinessReport {
   return { ready: !issues.some((issue) => issue.severity === 'error'), issues };
 }
 
-export function markReady(session: Session, team: Team, now: Date): Session {
+export function markReady(
+  session: Session,
+  team: Team,
+  now: Date,
+  options: ReadinessOptions = {},
+): Session {
   ensure(session.status === 'draft', 'INVALID_STATE', 'Only draft sessions can be marked ready.');
-  const report = checkReadiness(session, team);
+  const report = checkReadiness(session, team, options);
   ensure(
     report.ready,
     'VALIDATION',

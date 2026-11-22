@@ -51,6 +51,7 @@ function settingsWith(moderators: readonly string[]): ApplicationSettingsReposit
       Promise.resolve({
         tenantId,
         moderatorUserIds: moderators.map((id) => asId<UserId>(id)),
+        writableFieldIds: [],
         version: 1,
       }),
     save: (settings) => Promise.resolve(settings),
