@@ -537,8 +537,14 @@ export class SessionService {
   ): Promise<Session> {
     return await this.mutate(actor, sessionId, 'moderate', async ({ session, now }) => {
       const result = restoreParticipant(session, userId, actor.userId, now);
+      // The domain lists every open round the voter rejoins; only some hold an earlier vote.
+      let voteDiscarded = false;
 
       for (const discarded of result.discardedVotes) {
+        const existing = await this.deps.votes.listForRound(session.tenantId, discarded.roundId, [
+          discarded.userId,
+        ]);
+        voteDiscarded ||= existing.length > 0;
         await this.deps.votes.remove(session.tenantId, discarded.roundId, discarded.userId);
       }
 
@@ -549,7 +555,7 @@ export class SessionService {
             type: 'participant.restored',
             subjectUserId: userId,
             ticketId: session.currentTicketId,
-            details: { voteDiscarded: result.discardedVotes.length > 0 },
+            details: { voteDiscarded },
           },
         ],
         events: [{ type: 'participant.changed', userId }],

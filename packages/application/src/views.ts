@@ -20,6 +20,7 @@ import {
   currentTicket,
   describeParticipant,
   findParticipant,
+  isEditable,
   isRequiredVoter,
   latestRound,
   orderedTickets,
@@ -178,6 +179,11 @@ export function sessionView(input: SessionViewInput): SessionView {
         participantStatus(viewer) === 'joined' &&
         activeSessionSkip(session, input.viewerId) === undefined,
       canModerate: input.canModerate,
+      canInvite:
+        input.canModerate &&
+        (isEditable(session) ||
+          ((session.status === 'active' || session.status === 'paused') &&
+            session.settings.allowInvitationsWhileActive)),
     },
   };
 }

@@ -1,27 +1,15 @@
-import type {
-  CardView,
-  ParticipantView,
-  SessionView,
-  TicketView,
-  TicketVotingStateDto,
-} from '@planning-poker/contracts';
+import type { CardView, ParticipantView, SessionView, TicketView } from '@planning-poker/contracts';
+import type { ReactNode } from 'react';
 import { useState } from 'react';
 
 import type { PlanningPokerApi } from '../api';
 import { useAction } from '../hooks';
-import { STATUS_LABELS } from '../labels';
+import { STATUS_LABELS, TICKET_STATE_LABELS } from '../labels';
 import { useLiveSession } from '../live-session';
 import { ErrorMessage, Loading } from './Feedback';
-
-const TICKET_STATE_LABELS: Readonly<Record<TicketVotingStateDto, string>> = {
-  pending: 'Upcoming',
-  voting: 'Voting',
-  revealed: 'Revealed',
-  revoting: 'Revoting',
-  finalized: 'Estimated',
-  skipped: 'Skipped',
-  unresolved: 'Unresolved',
-};
+import type { SessionChange } from './ModeratorPanel';
+import { ModeratorPanel } from './ModeratorPanel';
+import { ParticipantManager } from './ParticipantManager';
 
 export interface PlanningRoomProps {
   readonly api: PlanningPokerApi;
@@ -39,6 +27,13 @@ export function PlanningRoom({ api, sessionId, onBack }: PlanningRoomProps) {
   const vote = (ticketId: string, cardId: string) => {
     void action.run(async () => {
       live.replace(await api.call('submitVote', { sessionId, ticketId, cardId }));
+    });
+  };
+  const moderate: SessionChange = (load) => {
+    void action.run(async () => {
+      live.replace(await load());
+      // The current ticket may have changed; go back to it.
+      setPreVoteTicketId(null);
     });
   };
   const join = () => {
@@ -66,17 +61,22 @@ export function PlanningRoom({ api, sessionId, onBack }: PlanningRoomProps) {
           onPreVoteTicket={setPreVoteTicketId}
           onVote={vote}
           onJoin={join}
-          onAdvance={() => {
-            void action.run(async () => {
-              live.replace(await api.call('advanceTicket', { sessionId }));
-              setPreVoteTicketId(null);
-            });
-          }}
-          onCancel={() => {
-            void action.run(async () => {
-              live.replace(await api.call('cancelSession', { sessionId }));
-            });
-          }}
+          moderatorControls={(session) => (
+            <>
+              <ModeratorPanel
+                api={api}
+                session={session}
+                pending={action.pending}
+                onChange={moderate}
+              />
+              <ParticipantManager
+                api={api}
+                session={session}
+                pending={action.pending}
+                onChange={moderate}
+              />
+            </>
+          )}
         />
       )}
     </section>
@@ -91,8 +91,7 @@ interface RoomProps {
   readonly onPreVoteTicket: (ticketId: string | null) => void;
   readonly onVote: (ticketId: string, cardId: string) => void;
   readonly onJoin: () => void;
-  readonly onAdvance: () => void;
-  readonly onCancel: () => void;
+  readonly moderatorControls: (session: SessionView) => ReactNode;
 }
 
 function Room({
@@ -103,8 +102,7 @@ function Room({
   onPreVoteTicket,
   onVote,
   onJoin,
-  onAdvance,
-  onCancel,
+  moderatorControls,
 }: RoomProps) {
   const current = session.tickets.find((ticket) => ticket.id === session.currentTicketId);
   const preVoteTicket = session.tickets.find((ticket) => ticket.id === preVoteTicketId);
@@ -175,29 +173,8 @@ function Room({
             </section>
           )}
           {session.viewer.canModerate &&
-            (session.status === 'active' || session.status === 'paused') && (
-              <section className="pp-card pp-stack" aria-labelledby="pp-moderate-title">
-                <h3 id="pp-moderate-title" className="pp-section-title">
-                  Moderator
-                </h3>
-                <p className="pp-muted">
-                  Skipping members, revotes and overrides arrive with the facilitator controls.
-                </p>
-                <div className="pp-row">
-                  {session.status === 'active' && (
-                    <button
-                      type="button"
-                      className="pp-button"
-                      disabled={pending || upcoming.length === 0}
-                      onClick={onAdvance}
-                    >
-                      Next ticket
-                    </button>
-                  )}
-                  <CancelSession pending={pending} onCancel={onCancel} />
-                </div>
-              </section>
-            )}
+            (session.status === 'active' || session.status === 'paused') &&
+            moderatorControls(session)}
         </div>
 
         <aside className="pp-room-side pp-stack" aria-label="Session details">
@@ -213,53 +190,6 @@ function Room({
           />
         </aside>
       </div>
-    </>
-  );
-}
-
-/** Two-step confirmation inline: browser dialogs are not available inside the Forge iframe. */
-function CancelSession({
-  pending,
-  onCancel,
-}: {
-  readonly pending: boolean;
-  readonly onCancel: () => void;
-}) {
-  const [confirming, setConfirming] = useState(false);
-
-  if (!confirming) {
-    return (
-      <button
-        type="button"
-        className="pp-button"
-        onClick={() => {
-          setConfirming(true);
-        }}
-      >
-        Cancel session
-      </button>
-    );
-  }
-
-  return (
-    <>
-      <button
-        type="button"
-        className="pp-button pp-button-danger"
-        disabled={pending}
-        onClick={onCancel}
-      >
-        Yes, cancel session
-      </button>
-      <button
-        type="button"
-        className="pp-button"
-        onClick={() => {
-          setConfirming(false);
-        }}
-      >
-        Keep session
-      </button>
     </>
   );
 }

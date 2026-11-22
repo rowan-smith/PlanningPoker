@@ -746,3 +746,26 @@
   background: var(--pp-tone-neutral-bg, var(--pp-color-surface-raised));
   color: var(--pp-tone-neutral-fg, var(--pp-color-text-muted));
 }
+
+/* Facilitator controls ------------------------------------------------------------------ */
+.pp-control-group {
+  padding-top: var(--pp-space-3);
+  border-top: 1px solid var(--pp-color-border);
+}
+
+.pp-control-group h4 {
+  margin: 0;
+}
+
+.pp-participant {
+  padding: var(--pp-space-2) 0;
+  border-bottom: 1px solid var(--pp-color-border);
+}
+
+.pp-participant p {
+  margin: 0;
+}
+
+.pp-muted[data-tone='amber'] {
+  color: var(--pp-tone-amber-fg, var(--pp-color-highlight));
+}

@@ -18,6 +18,7 @@ import type {
   DeckPreset,
   ParticipationRole,
   SessionId,
+  SkipScope,
   SpecialCardType,
   Team,
   TeamId,
@@ -32,6 +33,7 @@ const MAX_ID_LENGTH = 200;
 const MAX_TEXT_LENGTH = 2000;
 const MAX_LIST_LENGTH = 200;
 const MAX_QUERY_LENGTH = 1000;
+const MAX_REASON_LENGTH = 500;
 const SPECIAL_CARDS: readonly SpecialCardType[] = ['infinity', 'unknown', 'coffee'];
 
 export interface BackendServices {
@@ -113,6 +115,17 @@ function ticketId(payload: unknown): TicketId {
 
 function role(payload: unknown): ParticipationRole {
   return oneOf<ParticipationRole>(payload, 'role', ['voter', 'observer']);
+}
+
+function cardId(payload: unknown): CardId {
+  return asId<CardId>(text(payload, 'cardId', MAX_ID_LENGTH));
+}
+
+/** A required, non-blank reason (the domain trims and re-checks it). */
+function reason(payload: unknown): string {
+  const value = text(payload, 'reason', MAX_REASON_LENGTH);
+
+  return value.trim().length > 0 ? value : invalid('reason');
 }
 
 function deckChoice(payload: unknown): DeckChoice {
@@ -199,6 +212,19 @@ export function createHandlers(services: BackendServices, logger: Logger): Handl
         await change(actor, id, payload);
 
         return await sessions.getBuilderView(actor, id);
+      });
+  /** Runs a live-session change, then returns the session view the planning room re-renders. */
+  const sessionAfter =
+    (
+      key: ResolverKey,
+      change: (actor: AuthorizationContext, id: SessionId, payload: unknown) => Promise<unknown>,
+    ) =>
+    async (payload: unknown) =>
+      await run(key, async (actor) => {
+        const id = sessionId(payload);
+        await change(actor, id, payload);
+
+        return await sessions.getSessionView(actor, id);
       });
 
   return {
@@ -381,12 +407,7 @@ export function createHandlers(services: BackendServices, logger: Logger): Handl
     submitVote: async (payload) =>
       await run('submitVote', async (actor) => {
         const id = sessionId(payload);
-        await sessions.submitVote(
-          actor,
-          id,
-          ticketId(payload),
-          asId<CardId>(text(payload, 'cardId', MAX_ID_LENGTH)),
-        );
+        await sessions.submitVote(actor, id, ticketId(payload), cardId(payload));
 
         return await sessions.getSessionView(actor, id);
       }),
@@ -423,5 +444,78 @@ export function createHandlers(services: BackendServices, logger: Logger): Handl
 
         return await sessions.getHome(actor);
       }),
+
+    // Milestone 6 — facilitator controls ------------------------------------------------------
+    inviteToRoom: sessionAfter(
+      'inviteToRoom',
+      async (actor, id, payload) =>
+        await sessions.inviteParticipant(actor, id, userId(payload), role(payload)),
+    ),
+    changeRoomRole: sessionAfter(
+      'changeRoomRole',
+      async (actor, id, payload) =>
+        await sessions.changeParticipantRole(actor, id, userId(payload), role(payload)),
+    ),
+    revokeRoomInvitation: sessionAfter(
+      'revokeRoomInvitation',
+      async (actor, id, payload) => await sessions.revokeInvitation(actor, id, userId(payload)),
+    ),
+    skipParticipant: sessionAfter(
+      'skipParticipant',
+      async (actor, id, payload) =>
+        await sessions.skipParticipant(
+          actor,
+          id,
+          userId(payload),
+          oneOf<SkipScope>(payload, 'scope', ['ticket', 'session']),
+        ),
+    ),
+    restoreParticipant: sessionAfter(
+      'restoreParticipant',
+      async (actor, id, payload) => await sessions.restoreParticipant(actor, id, userId(payload)),
+    ),
+    revealRound: sessionAfter(
+      'revealRound',
+      async (actor, id, payload) => await sessions.reveal(actor, id, ticketId(payload)),
+    ),
+    startNewRound: sessionAfter(
+      'startNewRound',
+      async (actor, id, payload) => await sessions.startNewRound(actor, id, ticketId(payload)),
+    ),
+    acceptConsensus: sessionAfter(
+      'acceptConsensus',
+      async (actor, id, payload) => await sessions.acceptConsensus(actor, id, ticketId(payload)),
+    ),
+    overrideEstimate: sessionAfter(
+      'overrideEstimate',
+      async (actor, id, payload) =>
+        await sessions.overrideEstimate(
+          actor,
+          id,
+          ticketId(payload),
+          cardId(payload),
+          reason(payload),
+        ),
+    ),
+    skipTicket: sessionAfter(
+      'skipTicket',
+      async (actor, id, payload) => await sessions.skipTicket(actor, id, ticketId(payload)),
+    ),
+    setCurrentTicket: sessionAfter(
+      'setCurrentTicket',
+      async (actor, id, payload) => await sessions.setCurrentTicket(actor, id, ticketId(payload)),
+    ),
+    pauseSession: sessionAfter(
+      'pauseSession',
+      async (actor, id) => await sessions.pause(actor, id),
+    ),
+    resumeSession: sessionAfter(
+      'resumeSession',
+      async (actor, id) => await sessions.resume(actor, id),
+    ),
+    completeSession: sessionAfter(
+      'completeSession',
+      async (actor, id) => await sessions.complete(actor, id),
+    ),
   };
 }

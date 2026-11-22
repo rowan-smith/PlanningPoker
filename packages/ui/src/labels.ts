@@ -1,4 +1,9 @@
-import type { DeckPresetDto, SessionStatusDto, SpecialCardDto } from '@planning-poker/contracts';
+import type {
+  DeckPresetDto,
+  SessionStatusDto,
+  SpecialCardDto,
+  TicketVotingStateDto,
+} from '@planning-poker/contracts';
 
 export const STATUS_LABELS: Readonly<Record<SessionStatusDto, string>> = {
   draft: 'Draft',
@@ -20,4 +25,14 @@ export const SPECIAL_CARD_LABELS: Readonly<Record<SpecialCardDto, string>> = {
   infinity: '∞ Infinity — too big to estimate',
   unknown: '? Unknown — not enough information',
   coffee: '☕ Coffee — I need a break',
+};
+
+export const TICKET_STATE_LABELS: Readonly<Record<TicketVotingStateDto, string>> = {
+  pending: 'Upcoming',
+  voting: 'Voting',
+  revealed: 'Revealed',
+  revoting: 'Revoting',
+  finalized: 'Estimated',
+  skipped: 'Skipped',
+  unresolved: 'Unresolved',
 };

@@ -30,17 +30,55 @@ function setup(role: ApplicationRole) {
 
   app.identity.actor = { userId: asId<UserId>('me'), tenantId: tenant, role };
   const deps = { ...app.deps, settings: app.settings };
+  const sessions = new SessionService(deps);
+  const teams = new TeamService(deps);
   const handlers = createHandlers(
     {
       identity: app.identity,
-      teams: new TeamService(deps),
+      teams,
       settings: new SettingsService(deps),
-      sessions: new SessionService(deps),
+      sessions,
     },
     logger,
   );
 
-  return { app, handlers, logged };
+  return { app, handlers, logged, sessions, teams };
+}
+
+/** A published session moderated by "me", with "other" invited as a voter and one ticket. */
+async function liveSession(context: ReturnType<typeof setup>) {
+  const me = { userId: asId<UserId>('me'), tenantId: tenant, role: 'moderator' as const };
+  const team = await context.teams.createTeam(me, { name: 'Alpha' });
+  await context.teams.addMember(me, team.id, asId<UserId>('other'));
+  const draft = await context.sessions.createDraft(me, { name: 'Sprint', teamId: team.id });
+  await context.sessions.inviteParticipant(me, draft.id, asId<UserId>('other'), 'voter');
+  const withTicket = await context.sessions.addTickets(me, draft.id, [
+    {
+      reference: {
+        provider: 'fake',
+        installationId: 'site',
+        itemId: '1',
+        displayKey: 'PP-1',
+        url: null,
+      },
+      snapshot: {
+        title: 'Ticket',
+        description: null,
+        itemType: null,
+        status: null,
+        displayFields: {},
+        fieldValues: {},
+      },
+    },
+  ]);
+  await context.sessions.publish(me, draft.id);
+  const [ticket] = withTicket.tickets;
+
+  if (ticket === undefined) {
+    throw new Error('setup');
+  }
+
+  return { sessionId: draft.id as string, ticketId: ticket.id as string };
 }
 
 describe('resolver handlers', () => {
@@ -152,6 +190,103 @@ describe('resolver handlers', () => {
     expect(await handlers.advanceTicket({ sessionId: 'missing' })).toMatchObject({
       ok: false,
       error: { code: 'NOT_FOUND' },
+    });
+  });
+
+  it('validates facilitator control payloads before touching the session', async () => {
+    const { handlers } = setup('moderator');
+    const base = { sessionId: 's', ticketId: 't' };
+
+    expect(
+      await handlers.skipParticipant({ sessionId: 's', userId: 'other', scope: 'forever' }),
+    ).toMatchObject({ ok: false, error: { code: 'VALIDATION', message: 'Invalid scope.' } });
+    expect(await handlers.restoreParticipant({ sessionId: 's' })).toMatchObject({
+      ok: false,
+      error: { code: 'VALIDATION', message: 'Invalid userId.' },
+    });
+    expect(
+      await handlers.changeRoomRole({ sessionId: 's', userId: 'other', role: 'moderator' }),
+    ).toMatchObject({ ok: false, error: { code: 'VALIDATION', message: 'Invalid role.' } });
+    expect(await handlers.revealRound({ sessionId: 's' })).toMatchObject({
+      ok: false,
+      error: { code: 'VALIDATION', message: 'Invalid ticketId.' },
+    });
+    expect(await handlers.overrideEstimate({ ...base, reason: 'Agreed' })).toMatchObject({
+      ok: false,
+      error: { code: 'VALIDATION', message: 'Invalid cardId.' },
+    });
+    expect(await handlers.overrideEstimate({ ...base, cardId: 'c', reason: '   ' })).toMatchObject({
+      ok: false,
+      error: { code: 'VALIDATION', message: 'Invalid reason.' },
+    });
+    expect(
+      await handlers.overrideEstimate({ ...base, cardId: 'c', reason: 'x'.repeat(501) }),
+    ).toMatchObject({ ok: false, error: { code: 'VALIDATION', message: 'Invalid reason.' } });
+    expect(await handlers.setCurrentTicket({ sessionId: 's', ticketId: 7 })).toMatchObject({
+      ok: false,
+      error: { code: 'VALIDATION', message: 'Invalid ticketId.' },
+    });
+    expect(await handlers.pauseSession({})).toMatchObject({
+      ok: false,
+      error: { code: 'VALIDATION', message: 'Invalid sessionId.' },
+    });
+  });
+
+  it('runs facilitator controls and returns the updated session view', async () => {
+    const context = setup('moderator');
+    const { handlers } = context;
+    const { sessionId, ticketId } = await liveSession(context);
+
+    expect(
+      await handlers.skipParticipant({ sessionId, userId: 'other', scope: 'ticket' }),
+    ).toMatchObject({
+      ok: true,
+      value: {
+        participants: [{ userId: 'me' }, { userId: 'other', skippedForCurrentTicket: true }],
+      },
+    });
+    expect(await handlers.restoreParticipant({ sessionId, userId: 'other' })).toMatchObject({
+      ok: true,
+      value: { participants: [{}, { skippedForCurrentTicket: false, voteStatus: 'pending' }] },
+    });
+    expect(await handlers.revealRound({ sessionId, ticketId })).toMatchObject({
+      ok: false,
+      error: { code: 'INVALID_STATE' },
+    });
+    expect(await handlers.pauseSession({ sessionId })).toMatchObject({
+      ok: true,
+      value: { status: 'paused' },
+    });
+    expect(await handlers.resumeSession({ sessionId })).toMatchObject({
+      ok: true,
+      value: { status: 'active', viewer: { canModerate: true, canInvite: true } },
+    });
+    expect(await handlers.skipTicket({ sessionId, ticketId })).toMatchObject({
+      ok: true,
+      value: { tickets: [{ votingState: 'skipped' }] },
+    });
+    expect(await handlers.completeSession({ sessionId })).toMatchObject({
+      ok: true,
+      value: { status: 'completed', viewer: { canInvite: false } },
+    });
+  });
+
+  it('keeps facilitator controls moderator-only', async () => {
+    const context = setup('moderator');
+    const { sessionId, ticketId } = await liveSession(context);
+    context.app.identity.actor = {
+      userId: asId<UserId>('other'),
+      tenantId: tenant,
+      role: 'member',
+    };
+
+    expect(await context.handlers.skipTicket({ sessionId, ticketId })).toMatchObject({
+      ok: false,
+      error: { code: 'FORBIDDEN' },
+    });
+    expect(await context.handlers.pauseSession({ sessionId })).toMatchObject({
+      ok: false,
+      error: { code: 'FORBIDDEN' },
     });
   });
 });
