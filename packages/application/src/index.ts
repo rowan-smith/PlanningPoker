@@ -2,6 +2,7 @@ export * from './authorization';
 export * from './decks';
 export * from './dependencies';
 export * from './ports';
+export * from './report-service';
 export * from './session-service';
 export * from './settings-service';
 export * from './team-service';

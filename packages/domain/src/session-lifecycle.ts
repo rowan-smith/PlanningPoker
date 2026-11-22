@@ -3,7 +3,6 @@ import { isRegularCard, validateDeck } from './deck';
 import { ensure } from './errors';
 import type { FieldMapping } from './estimate';
 import { mapCardToField } from './estimate';
-import { participantStatus } from './participation';
 import type { Session } from './session';
 import { ensureActive, intendedVoterIds, orderedTickets, touch } from './session';
 import { setCurrentTicket } from './session-voting';
@@ -197,25 +196,4 @@ export function cancelSession(session: Session, now: Date): Session {
   );
 
   return { ...touch(session, now), status: 'cancelled' };
-}
-
-/** Counts used by the completed-session summary. */
-export function participationSummary(session: Session): {
-  readonly invited: number;
-  readonly joined: number;
-  readonly voters: number;
-  readonly observers: number;
-  readonly skippedVoters: number;
-} {
-  const invitees = session.participants.filter((participant) => participant.invitation !== null);
-
-  return {
-    invited: invitees.length,
-    joined: session.participants.filter(
-      (participant) => participantStatus(participant) === 'joined',
-    ).length,
-    voters: session.participants.filter((participant) => participant.role === 'voter').length,
-    observers: session.participants.filter((participant) => participant.role === 'observer').length,
-    skippedVoters: new Set(session.skips.map((skip) => skip.userId)).size,
-  };
 }

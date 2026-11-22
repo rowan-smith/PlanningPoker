@@ -65,3 +65,13 @@ export function canViewSession(actor: AuthorizationContext, session: Session, te
     hasActiveInvitation(participant)
   );
 }
+
+/** Team reports: the team's moderators and administrators. */
+export function canViewTeamReport(actor: AuthorizationContext, team: Team): boolean {
+  return canManageTeam(actor, team);
+}
+
+/** Application-wide reports: administrators only. */
+export function canViewAppReport(actor: AuthorizationContext): boolean {
+  return isAdministrator(actor);
+}

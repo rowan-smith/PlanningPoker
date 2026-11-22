@@ -2,11 +2,12 @@ import type { HomeView } from '@planning-poker/contracts';
 import { useCallback, useState } from 'react';
 
 import type { PlanningPokerApi } from './api';
-import { EmptyState } from './components/EmptyState';
 import { ErrorMessage, Loading } from './components/Feedback';
 import { HomePage } from './components/HomePage';
 import type { PageKey } from './components/Navigation';
 import { Navigation, PAGES, Sidebar } from './components/Navigation';
+import { ReportsPage } from './components/ReportsPage';
+import { SessionHistoryPage } from './components/SessionHistoryPage';
 import { SessionsPage } from './components/SessionsPage';
 import { SettingsPage } from './components/SettingsPage';
 import { TeamsPage } from './components/TeamsPage';
@@ -59,14 +60,8 @@ export function App({ api, sidebar }: AppProps) {
       {page === 'teams' && <TeamsPage api={api} />}
       {page === 'sessions' && <SessionsPage api={api} initialSessionId={openSessionId} />}
       {page === 'settings' && <SettingsPage api={api} />}
-      {(page === 'history' || page === 'reports') && (
-        <section className="pp-page" aria-labelledby="pp-page-title">
-          <h2 id="pp-page-title" className="pp-page-title">
-            {pageLabel}
-          </h2>
-          <EmptyState title={`${pageLabel} is not available yet`} message="Coming soon." />
-        </section>
-      )}
+      {page === 'history' && <SessionHistoryPage api={api} />}
+      {page === 'reports' && <ReportsPage api={api} />}
     </main>
   );
 

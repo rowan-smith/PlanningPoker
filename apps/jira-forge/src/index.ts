@@ -1,6 +1,11 @@
 import Resolver from '@forge/resolver';
 import type { ApplicationDependencies } from '@planning-poker/application';
-import { SessionService, SettingsService, TeamService } from '@planning-poker/application';
+import {
+  ReportService,
+  SessionService,
+  SettingsService,
+  TeamService,
+} from '@planning-poker/application';
 import { RESOLVER_KEYS } from '@planning-poker/contracts';
 import type { TenantId } from '@planning-poker/domain';
 import { asId } from '@planning-poker/domain';
@@ -63,6 +68,7 @@ function servicesFor(context: ForgeContext): BackendServices {
     teams: new TeamService(deps),
     settings: new SettingsService({ ...deps, settings }),
     sessions: new SessionService(deps),
+    reports: new ReportService(deps),
   };
 }
 

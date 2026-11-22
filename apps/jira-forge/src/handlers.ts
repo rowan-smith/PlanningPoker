@@ -1,13 +1,16 @@
 import type {
   DeckChoice,
   ErrorCode,
+  HistoryStatusDto,
   ResolverKey,
   ResolverResult,
   ResolverValue,
   TeamDetailView,
 } from '@planning-poker/contracts';
 import type {
+  DateRange,
   IdentityProvider,
+  ReportService,
   SessionService,
   SettingsService,
   TeamService,
@@ -25,6 +28,7 @@ import type {
   UserId,
 } from '@planning-poker/domain';
 import { asId, DECK_PRESETS, DomainError } from '@planning-poker/domain';
+import { DEFAULT_HISTORY_PAGE_SIZE, MAX_HISTORY_PAGE_SIZE } from '@planning-poker/application';
 
 import type { Logger } from './logger';
 
@@ -39,6 +43,7 @@ export interface BackendServices {
   readonly teams: TeamService;
   readonly settings: SettingsService;
   readonly sessions: SessionService;
+  readonly reports: ReportService;
 }
 
 export type Handlers = {
@@ -143,6 +148,90 @@ function specialCards(payload: unknown): SpecialCardType[] {
     : invalid('specialCards');
 }
 
+// Milestone 8 — reports: filters and date ranges.
+
+const MAX_DATE_LENGTH = 40;
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+const DATE_ONLY_LENGTH = 10;
+const HISTORY_STATUSES: readonly HistoryStatusDto[] = [
+  'active',
+  'paused',
+  'completed',
+  'cancelled',
+];
+
+/** `YYYY-MM-DD` is a whole UTC day (start for `from`, end for `to`); otherwise an ISO timestamp. */
+function optionalDate(payload: unknown, name: 'from' | 'to'): Date | null {
+  const value = field(payload, name);
+
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  if (typeof value !== 'string' || value.length > MAX_DATE_LENGTH) {
+    return invalid(name);
+  }
+
+  if (DATE_ONLY.test(value)) {
+    const date = new Date(`${value}T${name === 'from' ? '00:00:00.000' : '23:59:59.999'}Z`);
+
+    // Rejects impossible days such as 2026-02-31, which Date would roll over.
+    return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, DATE_ONLY_LENGTH) === value
+      ? date
+      : invalid(name);
+  }
+
+  const date = new Date(value);
+
+  return Number.isNaN(date.getTime()) ? invalid(name) : date;
+}
+
+function dateRange(payload: unknown): DateRange {
+  const from = optionalDate(payload, 'from');
+  const to = optionalDate(payload, 'to');
+
+  if (from !== null && to !== null && from > to) {
+    throw new DomainError('VALIDATION', 'The start date must be on or before the end date.');
+  }
+
+  return { from, to };
+}
+
+function optionalId(payload: unknown, name: string): string | null {
+  const value = field(payload, name);
+
+  return value === null || value === undefined ? null : text(payload, name, MAX_ID_LENGTH);
+}
+
+function pageSize(payload: unknown): number {
+  const value = field(payload, 'limit');
+
+  if (value === undefined || value === null) {
+    return DEFAULT_HISTORY_PAGE_SIZE;
+  }
+
+  return typeof value === 'number' &&
+    Number.isInteger(value) &&
+    value >= 1 &&
+    value <= MAX_HISTORY_PAGE_SIZE
+    ? value
+    : invalid('limit');
+}
+
+function historyFilters(payload: unknown) {
+  const team = optionalId(payload, 'teamId');
+  const status = field(payload, 'status');
+
+  return {
+    ...dateRange(payload),
+    teamId: team === null ? null : asId<TeamId>(team),
+    status:
+      status === null || status === undefined ? null : oneOf(payload, 'status', HISTORY_STATUSES),
+    cursor: optionalId(payload, 'cursor'),
+    limit: pageSize(payload),
+  };
+}
+
 // ---------------------------------------------------------------------------------------------
 // Handlers
 // ---------------------------------------------------------------------------------------------
@@ -161,7 +250,7 @@ const ERROR_CODES: ReadonlySet<string> = new Set<ErrorCode>([
  * logged (name and message only) and reported as an internal error.
  */
 export function createHandlers(services: BackendServices, logger: Logger): Handlers {
-  const { teams, settings, sessions } = services;
+  const { teams, settings, sessions, reports } = services;
   const run = async <T>(
     key: ResolverKey,
     work: (actor: AuthorizationContext) => Promise<T>,
@@ -423,5 +512,34 @@ export function createHandlers(services: BackendServices, logger: Logger): Handl
 
         return await sessions.getHome(actor);
       }),
+
+    // Milestone 8 — reports ---------------------------------------------------------------------
+    listSessionHistory: async (payload) =>
+      await run(
+        'listSessionHistory',
+        async (actor) => await reports.listSessionHistory(actor, historyFilters(payload)),
+      ),
+    getSessionSummary: async (payload) =>
+      await run(
+        'getSessionSummary',
+        async (actor) => await reports.getSessionSummary(actor, sessionId(payload)),
+      ),
+    getReportScope: async () =>
+      await run('getReportScope', async (actor) => await reports.getReportScope(actor)),
+    getTeamReport: async (payload) =>
+      await run(
+        'getTeamReport',
+        async (actor) => await reports.getTeamReport(actor, teamId(payload), dateRange(payload)),
+      ),
+    getAppReport: async (payload) =>
+      await run(
+        'getAppReport',
+        async (actor) => await reports.getAppReport(actor, dateRange(payload)),
+      ),
+    listAuditEvents: async (payload) =>
+      await run(
+        'listAuditEvents',
+        async (actor) => await reports.listAuditEvents(actor, sessionId(payload)),
+      ),
   };
 }
