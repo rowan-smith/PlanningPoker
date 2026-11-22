@@ -15,7 +15,9 @@ import {
   inviteParticipant,
   pendingExternalUpdate,
   removeTeamMember,
+  retryAvailableAt,
   retrySync,
+  STUCK_SYNC_AFTER_MS,
   roundProgress,
   unassignTeamModerator,
 } from '../src';
@@ -144,19 +146,39 @@ describe('external update state machine', () => {
 
     expect(failed.state).toBe('failed');
     expect(failed.attempts).toHaveLength(1);
-    expect(retrySync(failed, false).state).toBe('pending');
+    expect(retrySync(failed, false, now).state).toBe('pending');
   });
 
   it('requires explicit confirmation to retry a conflict', () => {
     const conflict = completeSync(beginSync(pending, now), 'conflict', 'Changed', now);
 
-    expect(() => retrySync(conflict, false)).toThrow(/Confirm/);
-    expect(retrySync(conflict, true)).toMatchObject({ state: 'pending', overwriteConfirmed: true });
+    expect(() => retrySync(conflict, false, now)).toThrow(/Confirm/);
+    expect(retrySync(conflict, true, now)).toMatchObject({
+      state: 'pending',
+      overwriteConfirmed: true,
+    });
+  });
+
+  it('lets a sync stuck in syncing be retried only after the timeout, closing the attempt', () => {
+    const syncing = beginSync(pending, now);
+    const early = new Date(now.getTime() + STUCK_SYNC_AFTER_MS - 1);
+    const late = new Date(now.getTime() + STUCK_SYNC_AFTER_MS);
+
+    expect(retryAvailableAt(syncing)).toEqual(late);
+    expect(() => retrySync(syncing, false, early)).toThrow(/still in progress/);
+
+    const retried = retrySync(syncing, false, late);
+
+    expect(retried).toMatchObject({ state: 'pending', idempotencyKey: 'ticket-1:round-1' });
+    expect(retried.attempts).toEqual([
+      expect.objectContaining({ outcome: 'failed', finishedAt: late }),
+    ]);
+    expect(retryAvailableAt(pending)).toBeNull();
   });
 
   it('rejects out-of-order transitions', () => {
     expect(() => completeSync(pending, 'succeeded', null, now)).toThrow(DomainError);
-    expect(() => retrySync(pending, true)).toThrow(DomainError);
+    expect(() => retrySync(pending, true, now)).toThrow(DomainError);
   });
 });
 

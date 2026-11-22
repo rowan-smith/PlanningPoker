@@ -78,11 +78,36 @@ describe('ForgeApplicationSettingsRepository', () => {
     );
     const initial = await repository.get(tenant);
 
-    expect(initial).toEqual({ tenantId: tenant, moderatorUserIds: [], version: 0 });
+    expect(initial).toEqual({
+      tenantId: tenant,
+      moderatorUserIds: [],
+      writableFieldIds: [],
+      version: 0,
+    });
 
-    const saved = await repository.save({ ...initial, moderatorUserIds: [user('u1')] });
+    const saved = await repository.save({
+      ...initial,
+      moderatorUserIds: [user('u1')],
+      writableFieldIds: ['customfield_10016'],
+    });
     expect(await repository.get(tenant)).toEqual(saved);
     await expect(repository.save(initial)).rejects.toBeInstanceOf(ConcurrencyConflict);
+  });
+
+  it('reads records saved before the writable-field allowlist existed', async () => {
+    const store = new InMemoryEntityStore(MANIFEST_INDEXES);
+    await store.create('appsettings', 'settings', {
+      tenantId: tenant,
+      version: 1,
+      data: { moderatorUserIds: ['u1'] },
+    });
+
+    expect(await new ForgeApplicationSettingsRepository(store).get(tenant)).toEqual({
+      tenantId: tenant,
+      moderatorUserIds: [user('u1')],
+      writableFieldIds: [],
+      version: 1,
+    });
   });
 });
 

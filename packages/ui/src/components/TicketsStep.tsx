@@ -9,6 +9,7 @@ import { useCallback, useEffect, useId, useState } from 'react';
 import type { PlanningPokerApi } from '../api';
 import { useAction, useLoad } from '../hooks';
 import { ErrorMessage, Loading } from './Feedback';
+import { FieldMappingStep } from './FieldMappingStep';
 
 const SUGGEST_DELAY_MS = 250;
 const MAX_DISPLAY_FIELDS = 5;
@@ -22,7 +23,7 @@ export interface TicketsStepProps {
 
 type Mode = 'keys' | 'jql';
 
-/** Step 4: import by key or JQL, choose display fields, and order the tickets. */
+/** Step 4: import by key or JQL, choose display fields, order the tickets, map the Jira field. */
 export function TicketsStep({ api, builder, pending, apply }: TicketsStepProps) {
   const [mode, setMode] = useState<Mode>('keys');
 
@@ -57,6 +58,17 @@ export function TicketsStep({ api, builder, pending, apply }: TicketsStepProps) 
       )}
       <DisplayFields api={api} builder={builder} pending={pending} apply={apply} />
       <TicketList api={api} builder={builder} pending={pending} apply={apply} />
+      <FieldMappingStep
+        // Options come from the tickets and cards from the deck: reload when either changes.
+        key={[
+          ...builder.session.tickets.map((t) => t.id),
+          ...builder.scoring.cards.map((c) => c.id),
+        ].join()}
+        api={api}
+        builder={builder}
+        pending={pending}
+        apply={apply}
+      />
     </div>
   );
 }

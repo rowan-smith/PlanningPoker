@@ -30,7 +30,7 @@ export interface JiraResponse {
 }
 
 export interface JiraRequestInit {
-  readonly method: 'GET' | 'POST';
+  readonly method: 'GET' | 'POST' | 'PUT';
   /** Serialized as JSON. */
   readonly body?: unknown;
 }
@@ -59,9 +59,9 @@ export class JiraApiError extends Error {
 export const forgeJiraRequest: JiraRequest = async (path, as, init) => {
   const client = as === 'app' ? api.asApp() : api.asUser();
 
-  if (init?.method === 'POST') {
+  if (init?.method === 'POST' || init?.method === 'PUT') {
     return await client.requestJira(path, {
-      method: 'POST',
+      method: init.method,
       headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
       body: JSON.stringify(init.body ?? {}),
     });

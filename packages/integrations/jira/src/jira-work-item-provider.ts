@@ -2,6 +2,7 @@ import { route } from '@forge/api';
 import type { Route } from '@forge/api';
 import type {
   ExternalField,
+  ExternalFieldOption,
   ImportedWorkItem,
   QuerySuggestion,
   UpdateResult,
@@ -9,11 +10,13 @@ import type {
   WorkItemFieldSelection,
   WorkItemProvider,
   WorkItemSearchPage,
+  WorkItemUpdateRequest,
 } from '@planning-poker/application';
-import type { FieldValue } from '@planning-poker/domain';
+import type { WorkItemReference } from '@planning-poker/domain';
 import { DomainError } from '@planning-poker/domain';
 
 import { fieldValueToText, richTextToPlain } from './adf';
+import { JiraFieldWriter, jiraFieldValue } from './jira-field-writer';
 import type { JqlField } from './jql-autocomplete';
 import {
   completionContext,
@@ -48,15 +51,6 @@ function namedField(value: unknown): string | null {
   return isRecord(value) ? stringField(value.name) : null;
 }
 
-/** Raw value captured for writable fields, used later to detect changes made in Jira. */
-function rawFieldValue(value: unknown): FieldValue | null {
-  if (typeof value === 'number' || typeof value === 'string') {
-    return value;
-  }
-
-  return isRecord(value) && typeof value.id === 'string' ? value.id : null;
-}
-
 function issueUrl(self: unknown, key: string): string | null {
   if (typeof self !== 'string') {
     return null;
@@ -76,8 +70,8 @@ export interface JiraWorkItemContext {
 }
 
 /**
- * Imports Jira issues as the calling user, so Jira's own issue permissions decide what can be
- * imported. Writing estimates back arrives in Milestone 7.
+ * Imports Jira issues and writes estimates back as the calling user, so Jira's own issue
+ * permissions decide what can be imported and edited.
  */
 export class JiraWorkItemProvider implements WorkItemProvider {
   readonly providerId = JIRA_PROVIDER;
@@ -85,10 +79,12 @@ export class JiraWorkItemProvider implements WorkItemProvider {
   private readonly request: JiraRequest;
   private fields: Promise<readonly ExternalField[]> | null = null;
   private jqlFields: Promise<readonly JqlField[]> | null = null;
+  private readonly writer: JiraFieldWriter;
 
   constructor(context: JiraWorkItemContext, request: JiraRequest = forgeJiraRequest) {
     this.context = context;
     this.request = request;
+    this.writer = new JiraFieldWriter(request, async () => await this.discoverFields());
   }
 
   async getItems(
@@ -189,12 +185,19 @@ export class JiraWorkItemProvider implements WorkItemProvider {
     return await this.fields;
   }
 
-  validateUpdate(): Promise<UpdateValidation> {
-    return Promise.reject(notYetWritable());
+  async listFieldOptions(
+    fieldId: string,
+    items: readonly WorkItemReference[],
+  ): Promise<readonly ExternalFieldOption[]> {
+    return await this.writer.listFieldOptions(fieldId, items);
   }
 
-  update(): Promise<UpdateResult> {
-    return Promise.reject(notYetWritable());
+  async validateUpdate(request: WorkItemUpdateRequest): Promise<UpdateValidation> {
+    return await this.writer.validate(request);
+  }
+
+  async update(request: WorkItemUpdateRequest): Promise<UpdateResult> {
+    return await this.writer.update(request);
   }
 
   // -------------------------------------------------------------------------------------------
@@ -267,7 +270,7 @@ export class JiraWorkItemProvider implements WorkItemProvider {
         status: namedField(fields.status),
         displayFields,
         fieldValues: Object.fromEntries(
-          selection.valueFieldIds.map((fieldId) => [fieldId, rawFieldValue(fields[fieldId])]),
+          selection.valueFieldIds.map((fieldId) => [fieldId, jiraFieldValue(fields[fieldId])]),
         ),
       },
     };
@@ -344,8 +347,4 @@ export class JiraWorkItemProvider implements WorkItemProvider {
 
     return await response.json();
   }
-}
-
-function notYetWritable(): DomainError {
-  return new DomainError('INVALID_STATE', 'Saving estimates to Jira arrives in Milestone 7.');
 }

@@ -1,6 +1,7 @@
 import type {
   DeckChoice,
   DisplayFieldsView,
+  FieldMappingView,
   HomeView,
   InvitationView,
   SessionBuilderView,
@@ -17,6 +18,7 @@ import type {
   DeckPreset,
   InvitationId,
   ParticipationRole,
+  ReadinessOptions,
   ReadinessReport,
   RoundId,
   Session,
@@ -85,6 +87,8 @@ import {
 import { canManageTeam, canModerateSession, canViewSession, forbid } from './authorization';
 import type { ApplicationDependencies, AuditInput } from './dependencies';
 import { auditEvent } from './dependencies';
+import type { FieldMappingInput } from './field-mapping';
+import { fieldMappingView, resolveDestination } from './field-mapping';
 import type {
   ImportedWorkItem,
   QuerySuggestion,
@@ -128,6 +132,8 @@ function fieldSelection(session: Session): WorkItemFieldSelection {
 }
 
 const SYNC_FAILURE_MESSAGE = 'The work item could not be updated. Try again later.';
+const FIELD_NOT_ALLOWED_MESSAGE =
+  "This field is no longer on the administrator's list of writable fields.";
 
 /**
  * Session use cases. Every state change runs inside AtomicOperation for the session, is
@@ -349,6 +355,42 @@ export class SessionService {
 
     const updated = await this.updateSettings(actor, sessionId, { displayFieldIds: unique });
 
+    return await this.refreshTickets(actor, sessionId, updated);
+  }
+
+  // Milestone 7 — Jira fields ----------------------------------------------------------------
+
+  async getFieldMapping(
+    actor: AuthorizationContext,
+    sessionId: SessionId,
+  ): Promise<FieldMappingView> {
+    const { session } = await this.loadAuthorized(actor, sessionId, 'moderate');
+
+    return await fieldMappingView(this.deps, session);
+  }
+
+  /**
+   * Chooses the allowlisted field final estimates are written to (and, for single-select
+   * fields, each card's option), then re-reads tickets so conflict detection has a baseline.
+   */
+  async setFieldMapping(
+    actor: AuthorizationContext,
+    sessionId: SessionId,
+    input: FieldMappingInput,
+  ): Promise<Session> {
+    const { session } = await this.loadAuthorized(actor, sessionId, 'moderate');
+    const destinationField = await resolveDestination(this.deps, session, input);
+    const updated = await this.updateSettings(actor, sessionId, { destinationField });
+
+    return await this.refreshTickets(actor, sessionId, updated);
+  }
+
+  /** Re-reads every ticket's display fields and writable-field values from the provider. */
+  private async refreshTickets(
+    actor: AuthorizationContext,
+    sessionId: SessionId,
+    updated: Session,
+  ): Promise<Session> {
     if (updated.tickets.length === 0) {
       return updated;
     }
@@ -361,6 +403,12 @@ export class SessionService {
     return await this.mutate(actor, sessionId, 'moderate', ({ session, now }) => ({
       session: refreshTicketSnapshots(session, found, now),
     }));
+  }
+
+  private async readinessOptions(session: Session): Promise<ReadinessOptions> {
+    const settings = await this.deps.settings.get(session.tenantId);
+
+    return { writableFieldIds: settings.writableFieldIds };
   }
 
   async removeTicket(
@@ -391,25 +439,26 @@ export class SessionService {
   ): Promise<ReadinessReport> {
     const { session, team } = await this.loadAuthorized(actor, sessionId, 'moderate');
 
-    return checkReadiness(session, team);
+    return checkReadiness(session, team, await this.readinessOptions(session));
   }
 
   async markReady(actor: AuthorizationContext, sessionId: SessionId): Promise<Session> {
-    return await this.mutate(actor, sessionId, 'moderate', ({ session, team, now }) => ({
-      session: markReady(session, team, now),
+    return await this.mutate(actor, sessionId, 'moderate', async ({ session, team, now }) => ({
+      session: markReady(session, team, now, await this.readinessOptions(session)),
     }));
   }
 
   async publish(actor: AuthorizationContext, sessionId: SessionId): Promise<Session> {
-    return await this.mutate(actor, sessionId, 'moderate', ({ session, team, now }) => {
-      const report = checkReadiness(session, team);
+    return await this.mutate(actor, sessionId, 'moderate', async ({ session, team, now }) => {
+      const options = await this.readinessOptions(session);
+      const report = checkReadiness(session, team, options);
 
       if (!report.ready) {
         throw new DomainError('VALIDATION', 'Fix the readiness errors before publishing.');
       }
 
       // A draft that passes readiness is marked ready and published in one step.
-      const ready = session.status === 'draft' ? markReady(session, team, now) : session;
+      const ready = session.status === 'draft' ? markReady(session, team, now, options) : session;
       const published = publishSession(ready, now);
 
       return {
@@ -856,7 +905,7 @@ export class SessionService {
       ...session.participants.map((participant) => participant.userId),
       ...suggestedIds,
     ]);
-    const report = checkReadiness(session, team);
+    const report = checkReadiness(session, team, await this.readinessOptions(session));
 
     return {
       session: sessionView({
@@ -1177,7 +1226,7 @@ export class SessionService {
         : (snapshot.fieldValues[fieldId] ?? null),
       idempotencyKey,
     };
-    const result = await this.writeToProvider(request);
+    const result = await this.writeToProvider(request, session.tenantId);
 
     const final = await this.deps.atomic.run(key, async () => {
       const latest = await this.deps.sessions.get(session.tenantId, session.id);
@@ -1238,8 +1287,18 @@ export class SessionService {
       : await this.syncIfPending(final.saved, final.finalizedTicketId);
   }
 
-  private async writeToProvider(request: WorkItemUpdateRequest): Promise<UpdateResult> {
+  private async writeToProvider(
+    request: WorkItemUpdateRequest,
+    tenantId: Session['tenantId'],
+  ): Promise<UpdateResult> {
     try {
+      // The allowlist may have changed since the session was published.
+      const { writableFieldIds } = await this.deps.settings.get(tenantId);
+
+      if (!writableFieldIds.includes(request.fieldId)) {
+        return { status: 'failed', message: FIELD_NOT_ALLOWED_MESSAGE };
+      }
+
       const validation = await this.deps.workItems.validateUpdate(request);
 
       if (validation.status !== 'ok') {

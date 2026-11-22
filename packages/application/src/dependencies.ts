@@ -12,6 +12,7 @@ import type {
 import { asId } from '@planning-poker/domain';
 
 import type {
+  ApplicationSettingsRepository,
   AtomicOperation,
   AuditRepository,
   Clock,
@@ -37,6 +38,7 @@ export interface ApplicationDependencies {
   readonly ids: IdGenerator;
   readonly identity: IdentityProvider;
   readonly workItems: WorkItemProvider;
+  readonly settings: ApplicationSettingsRepository;
 }
 
 export interface AuditInput {

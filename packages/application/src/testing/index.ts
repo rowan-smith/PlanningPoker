@@ -16,6 +16,7 @@ import type {
   UserId,
   UserIdentity,
   Vote,
+  WorkItemReference,
 } from '@planning-poker/domain';
 import { workItemKey } from '@planning-poker/domain';
 
@@ -28,6 +29,7 @@ import type {
   Clock,
   EventPublisher,
   ExternalField,
+  ExternalFieldOption,
   IdentityProvider,
   IdGenerator,
   ImportedWorkItem,
@@ -110,7 +112,12 @@ export class InMemoryApplicationSettingsRepository implements ApplicationSetting
 
   get(tenantId: TenantId): Promise<ApplicationSettings> {
     return Promise.resolve(
-      this.byTenant.get(tenantId) ?? { tenantId, moderatorUserIds: [], version: 0 },
+      this.byTenant.get(tenantId) ?? {
+        tenantId,
+        moderatorUserIds: [],
+        writableFieldIds: [],
+        version: 0,
+      },
     );
   }
 
@@ -343,12 +350,27 @@ export class FakeWorkItemProvider implements WorkItemProvider {
   suggestions: string[] = ['project = PP', 'project = PP AND status = "To Do"', 'issuetype = Bug'];
   nextUpdateResult: UpdateResult = { status: 'succeeded' };
   nextValidation: UpdateValidation = { status: 'ok' };
+  /** One-shot failure for the next write only (e.g. the local preview's "fail next write"). */
+  private failNext: string | null = null;
 
   /** Field values by item key and field ID, returned as display text when selected. */
   readonly fieldTexts = new Map<string, Readonly<Record<string, string>>>();
 
   add(key: string, item: ImportedWorkItem): void {
     this.items.set(key, item);
+  }
+
+  /** Simulates someone editing the field in the provider (e.g. in Jira). */
+  setFieldValue(reference: WorkItemReference, fieldId: string, value: FieldValue | null): void {
+    this.fieldValues.set(`${workItemKey(reference)}#${fieldId}`, value);
+  }
+
+  currentFieldValue(reference: WorkItemReference, fieldId: string): FieldValue | null {
+    return this.fieldValues.get(`${workItemKey(reference)}#${fieldId}`) ?? null;
+  }
+
+  failNextUpdate(message: string): void {
+    this.failNext = message;
   }
 
   private withFields(item: ImportedWorkItem, fields: WorkItemFieldSelection): ImportedWorkItem {
@@ -362,7 +384,11 @@ export class FakeWorkItemProvider implements WorkItemProvider {
       }),
     );
 
-    return { ...item, snapshot: { ...item.snapshot, displayFields } };
+    const fieldValues = Object.fromEntries(
+      fields.valueFieldIds.map((id) => [id, this.currentFieldValue(item.reference, id)]),
+    );
+
+    return { ...item, snapshot: { ...item.snapshot, displayFields, fieldValues } };
   }
 
   /** Matches every word of the query against key, title, type and status. Pages by `pageSize`. */
@@ -418,16 +444,32 @@ export class FakeWorkItemProvider implements WorkItemProvider {
     return Promise.resolve(this.fields);
   }
 
+  listFieldOptions(
+    fieldId: string,
+    items: readonly WorkItemReference[],
+  ): Promise<readonly ExternalFieldOption[]> {
+    const field = this.fields.find((entry) => entry.fieldId === fieldId);
+
+    return Promise.resolve(items.length === 0 || field === undefined ? [] : field.options);
+  }
+
   validateUpdate(request: WorkItemUpdateRequest): Promise<UpdateValidation> {
-    const key = `${workItemKey(request.reference)}#${request.fieldId}`;
-    const current = this.fieldValues.get(key) ?? null;
+    const current = this.currentFieldValue(request.reference, request.fieldId);
+
+    if (this.nextValidation.status === 'ok' && current === request.value) {
+      // Already written (a retry after an interrupted attempt): idempotent.
+      return Promise.resolve({ status: 'ok' });
+    }
 
     if (
       this.nextValidation.status === 'ok' &&
       request.expectedCurrentValue !== undefined &&
       current !== request.expectedCurrentValue
     ) {
-      return Promise.resolve({ status: 'conflict', message: 'The field changed since import.' });
+      return Promise.resolve({
+        status: 'conflict',
+        message: `The field was changed to ${String(current)} since import.`,
+      });
     }
 
     return Promise.resolve(this.nextValidation);
@@ -435,6 +477,13 @@ export class FakeWorkItemProvider implements WorkItemProvider {
 
   update(request: WorkItemUpdateRequest): Promise<UpdateResult> {
     this.updates.push(request);
+
+    if (this.failNext !== null) {
+      const message = this.failNext;
+      this.failNext = null;
+
+      return Promise.resolve({ status: 'failed', message });
+    }
 
     if (this.nextUpdateResult.status === 'succeeded') {
       this.fieldValues.set(`${workItemKey(request.reference)}#${request.fieldId}`, request.value);
@@ -466,6 +515,7 @@ export function createInMemoryApplication(): InMemoryApplication {
   const clock = new FixedClock();
   const identity = new InMemoryIdentityProvider();
   const workItems = new FakeWorkItemProvider();
+  const settings = new InMemoryApplicationSettingsRepository();
 
   return {
     deps: {
@@ -480,6 +530,7 @@ export function createInMemoryApplication(): InMemoryApplication {
       ids: new SequentialIds(),
       identity,
       workItems,
+      settings,
     },
     teams,
     sessions,
@@ -489,6 +540,6 @@ export function createInMemoryApplication(): InMemoryApplication {
     clock,
     identity,
     workItems,
-    settings: new InMemoryApplicationSettingsRepository(),
+    settings,
   };
 }

@@ -14,7 +14,7 @@ import type {
   TicketId,
   UserId,
 } from '@planning-poker/domain';
-import { asId } from '@planning-poker/domain';
+import { asId, currentTicket } from '@planning-poker/domain';
 import type { PlanningPokerApi } from '@planning-poker/ui';
 import { unwrap } from '@planning-poker/ui';
 
@@ -44,6 +44,16 @@ const ISSUES = [
 
 /** Jira issue IDs are numeric and unrelated to keys; mimic that. */
 const FIRST_ISSUE_ID = 10_001;
+
+/** Custom field IDs differ per Jira site; the app discovers them. These mimic a real site. */
+const STORY_POINTS_FIELD = 'customfield_10016';
+const SIZE_FIELD = 'customfield_10042';
+const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
+/** A value "someone in Jira" sets, to demonstrate conflicts. */
+const JIRA_EDIT_POINTS = 13;
+const FIRST_OPTION_ID = 10_100;
+/** An issue that already has an estimate in "Jira". */
+const EXISTING_ESTIMATE = { displayKey: 'PP-3', points: 3 } as const;
 
 const devLogger: Logger = {
   error(message, error) {
@@ -86,6 +96,10 @@ export interface DevBackend {
    * joins (if invited) and votes, so a single visitor can see rounds reveal.
    */
   readonly simulateTeammates: () => Promise<number>;
+  /** Demo only: the next Jira write fails, as if Jira were unavailable. */
+  readonly failNextJiraWrite: () => string;
+  /** Demo only: someone edits the destination field of each active session's current ticket. */
+  readonly editInJira: () => Promise<string>;
 }
 
 const SIMULATED_CARD_CHOICES = 3;
@@ -132,11 +146,23 @@ export async function createDevApi(search: string): Promise<DevBackend> {
   app.workItems.fields = [
     { fieldId: 'priority', name: 'Priority', valueType: 'unsupported', options: [] },
     { fieldId: 'labels', name: 'Labels', valueType: 'unsupported', options: [] },
-    { fieldId: 'customfield_10016', name: 'Story points', valueType: 'number', options: [] },
+    { fieldId: STORY_POINTS_FIELD, name: 'Story points', valueType: 'number', options: [] },
+    {
+      fieldId: SIZE_FIELD,
+      name: 'T-shirt size',
+      valueType: 'option',
+      options: SIZES.map((value, index) => ({ id: String(FIRST_OPTION_ID + index), value })),
+    },
   ];
+  const estimated = app.workItems.items.get(EXISTING_ESTIMATE.displayKey);
+
+  if (estimated !== undefined) {
+    app.workItems.setFieldValue(estimated.reference, STORY_POINTS_FIELD, EXISTING_ESTIMATE.points);
+  }
+
   app.identity.actor = actorFor(me);
   const events = new LocalEventBus();
-  const deps = { ...app.deps, events, settings: app.settings };
+  const deps = { ...app.deps, events };
   const teams = new TeamService(deps);
   const settings = new SettingsService(deps);
   const sessions = new SessionService(deps);
@@ -145,6 +171,8 @@ export async function createDevApi(search: string): Promise<DevBackend> {
   const admin = actorFor(PEOPLE.admin);
   const max = actorFor(PEOPLE.moderator);
   await settings.assignModerator(admin, asId<UserId>(PEOPLE.moderator.id));
+  // Story points is allowed for estimates; Ada can also allow "T-shirt size" in Settings.
+  await settings.setFieldAllowlist(admin, [STORY_POINTS_FIELD]);
   const platform = await teams.createTeam(max, {
     name: 'Platform',
     description: 'Payments and accounts',
@@ -159,6 +187,8 @@ export async function createDevApi(search: string): Promise<DevBackend> {
   await sessions.inviteParticipant(max, live.id, asId<UserId>(PEOPLE.sam.id), 'voter');
   await sessions.inviteParticipant(max, live.id, asId<UserId>(PEOPLE.observer.id), 'observer');
   await sessions.importByKeys(max, live.id, ['PP-1', 'PP-2', 'PP-3']);
+  await sessions.setFieldMapping(max, live.id, { fieldId: STORY_POINTS_FIELD, optionByCardId: {} });
+  await sessions.updateSettings(max, live.id, { autoFinalize: true, autoAdvance: true });
   await sessions.publish(max, live.id);
   await sessions.respondToInvitation(actorFor(PEOPLE.sam), live.id, 'joined');
   await sessions.createDraft(max, { name: 'Sprint 43 planning', teamId: platform.id });
@@ -213,6 +243,34 @@ export async function createDevApi(search: string): Promise<DevBackend> {
     return votes;
   };
 
+  const failNextJiraWrite = (): string => {
+    app.workItems.failNextUpdate('Jira is unavailable right now. Retry later.');
+
+    return 'The next save to Jira will fail.';
+  };
+
+  const editInJira = async (): Promise<string> => {
+    const edited: string[] = [];
+    const teamIds = (await app.teams.listForTenant(TENANT)).map((team) => team.id);
+
+    for (const session of await app.sessions.listForTeams(TENANT, teamIds)) {
+      const ticket = currentTicket(session);
+      const field = session.settings.destinationField;
+
+      if (session.status !== 'active' || ticket === undefined || field === null) {
+        continue;
+      }
+
+      const value = field.valueType === 'number' ? JIRA_EDIT_POINTS : (SIZES.at(-1) ?? 'XXL');
+      app.workItems.setFieldValue(ticket.reference, field.fieldId, value);
+      edited.push(`${ticket.reference.displayKey} ${field.fieldName} → ${String(value)}`);
+    }
+
+    return edited.length === 0
+      ? 'No active session saves to a Jira field.'
+      : `Changed in Jira: ${edited.join(', ')}.`;
+  };
+
   return {
     api: {
       async call(key, payload) {
@@ -223,5 +281,7 @@ export async function createDevApi(search: string): Promise<DevBackend> {
       subscribe: (sessionId, onChange) => events.subscribe(sessionId, onChange),
     },
     simulateTeammates,
+    failNextJiraWrite,
+    editInJira,
   };
 }

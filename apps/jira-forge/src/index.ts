@@ -33,6 +33,7 @@ interface ForgeContext {
 const store = new KvsEntityStore();
 const settings = new ForgeApplicationSettingsRepository(store);
 const shared = {
+  settings,
   teams: new ForgeTeamRepository(store),
   sessions: new ForgeSessionRepository(store),
   participants: new ForgeParticipantRepository(store),
@@ -61,7 +62,7 @@ function servicesFor(context: ForgeContext): BackendServices {
   return {
     identity,
     teams: new TeamService(deps),
-    settings: new SettingsService({ ...deps, settings }),
+    settings: new SettingsService(deps),
     sessions: new SessionService(deps),
   };
 }

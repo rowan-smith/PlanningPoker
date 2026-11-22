@@ -14,7 +14,11 @@ const SETTINGS_KEY = 'settings';
 export interface SettingsRecord {
   readonly tenantId: string;
   readonly version: number;
-  readonly data: { readonly moderatorUserIds: readonly string[] };
+  readonly data: {
+    readonly moderatorUserIds: readonly string[];
+    /** Added in Milestone 7; absent in records saved before it. */
+    readonly writableFieldIds?: readonly string[];
+  };
 }
 
 export class ForgeApplicationSettingsRepository implements ApplicationSettingsRepository {
@@ -28,12 +32,13 @@ export class ForgeApplicationSettingsRepository implements ApplicationSettingsRe
     const record = await this.store.get<SettingsRecord>(ENTITIES.settings.name, SETTINGS_KEY);
 
     if (record?.tenantId !== tenantId) {
-      return { tenantId, moderatorUserIds: [], version: 0 };
+      return { tenantId, moderatorUserIds: [], writableFieldIds: [], version: 0 };
     }
 
     return {
       tenantId,
       moderatorUserIds: record.data.moderatorUserIds.map((id) => asId<UserId>(id)),
+      writableFieldIds: [...(record.data.writableFieldIds ?? [])],
       version: record.version,
     };
   }
@@ -43,7 +48,10 @@ export class ForgeApplicationSettingsRepository implements ApplicationSettingsRe
     const record: SettingsRecord = {
       tenantId: settings.tenantId,
       version: saved.version,
-      data: { moderatorUserIds: [...settings.moderatorUserIds] },
+      data: {
+        moderatorUserIds: [...settings.moderatorUserIds],
+        writableFieldIds: [...settings.writableFieldIds],
+      },
     };
 
     if (settings.version === 0) {

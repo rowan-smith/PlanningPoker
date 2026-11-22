@@ -376,5 +376,7 @@ export function retryTicketSync(
   confirmOverwrite: boolean,
   now: Date,
 ): Session {
-  return updateExternal(session, ticketId, now, (current) => retrySync(current, confirmOverwrite));
+  return updateExternal(session, ticketId, now, (current) =>
+    retrySync(current, confirmOverwrite, now),
+  );
 }

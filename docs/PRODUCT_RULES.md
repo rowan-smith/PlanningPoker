@@ -25,6 +25,8 @@ Source: _Planning Poker — Product & Engineering Specification v2.1_. This file
 - **Finalization and sync are separate state machines.** A ticket can be finalized while its write fails. Sync: `not-required | pending | syncing | succeeded | failed | conflict`. Conflicts (field changed since import) are never overwritten without explicit moderator confirmation. Retries reuse the decision's idempotency key.
 - **Auto-advance** only after an automatic finalization, when enabled, and only once the write succeeded.
 - Field IDs are discovered from the provider and never hardcoded. Special cards are never written to number fields.
+- **Three separate field concepts:** display-only ticket fields (per session, M4); the administrator's **allowlist of writable fields** (Settings; number and single-select fields only); and each session's **destination mapping** (one allowlisted field, plus card → option for single-select fields). Readiness fails when the destination is not on the allowlist or a regular card has no option.
+- Finalization order: final score → mapping check → allowlist check → edit permission and value check (editmeta) → external-change check (current value vs. the value captured at import or at the last mapping change) → write → record outcome → notify → auto-advance if allowed. The estimate stays final whatever the write outcome.
 - All moderator actions that change requirements, estimates or outcomes are audited.
 
 ## Assumptions (not settled by the spec)
@@ -51,9 +53,14 @@ Source: _Planning Poker — Product & Engineering Specification v2.1_. This file
 20. Moving to the next ticket is available to moderators from Milestone 5 so sessions can progress; the rest of the facilitator controls (skip, restore, revote, override, pause) arrive in Milestone 6.
 21. A voter must join before voting; invited voters still count as required for the round (assumption 1), so the room shows "Invited · waiting" for them.
 22. An issue whose key changed since it was typed (moved between projects) is imported under its new key and the old key is also listed as not found.
+23. (M7) Single-select options are read from each ticket's Jira edit metadata as the moderator (up to 10 tickets), not from field contexts, which need Jira administrator rights. Cards map to option **values**; writes send `{ "value": … }`, so one mapping works across projects whose contexts share option names.
+24. (M7) A field that already holds the value being written counts as written (no conflict). This makes retries idempotent; Jira edits have no idempotency key.
+25. (M7) A write stuck in `syncing` for 2 minutes (`STUCK_SYNC_AFTER_MS`) is treated as interrupted: a moderator may retry it, which closes the attempt as failed and writes again with the same idempotency key (safe by 29). Before that, retry is refused.
+26. (M7) A field removed from the allowlist after publishing makes later writes fail visibly; publishing is blocked while the mapping points at it.
+27. (M7) Missing edit permission is reported when Jira's edit metadata lists no editable fields; a field missing from it (not on the screen or context) is reported as invalid. HTTP 409/422/429/5xx are recorded as retryable failures; nothing is retried automatically.
+28. (M7) Additional writable fields remain unsupported in the UI; only the destination field is written.
 
 ## Open decisions
 
 - What value is written to the "additional writable fields"? They are stored and validated but not written yet.
-- How should a sync left in `syncing` (process died mid-write) be recovered? Needed before Milestone 7.
 - Should team members who are not on the roster be able to observe a published session?
