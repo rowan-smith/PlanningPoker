@@ -57,6 +57,28 @@ Source: _Planning Poker — Product & Engineering Specification v2.1_. This file
 26. With auto-finalize off, a moderator accepts a unanimous regular result explicitly. If the destination field cannot take that value, accepting is refused and the moderator overrides instead. Override reasons are limited to 500 characters and stored in the audit log.
 27. Skipping a voter "for this ticket" needs an open round on the current ticket; "for the rest of the session" works at any time while the session runs.
 
+## Reports and history (Milestone 8)
+
+Definitions used by session summaries, team reports and the application report. Categories can overlap.
+
+- **Invited:** everyone who had an invitation, whatever their response. Facilitators are not invited.
+- **Joined:** invitees who accepted. **Declined**, **revoked** (removed by a moderator) and **no response** are listed separately.
+- **Voting:** people whose vote was counted in at least one revealed round. A round reveals only when every required voter has voted and revealed rounds never change, so these are exactly the required voters of revealed rounds; individual votes are never read for reports.
+- **Observing:** joined observers and facilitators who did not vote.
+- **Skipped:** anyone with a skip record (per ticket or for the session), including ones later restored.
+- **Revotes:** rounds started after a ticket's first. **Disagreements:** revealed rounds whose votes differed. **Unanimous tickets:** the latest revealed round was unanimous (even if a moderator then overrode it).
+- **Ticket outcome:** estimated (finalized), skipped, unresolved (open when the session completed) or in progress.
+- **Moderator** on a summary is the session's creator; facilitators are listed separately.
+
+Assumptions:
+
+23. Summaries are available for any published or cancelled session to anyone who can view the session (the running ones are marked as not final); drafts have none. Summaries of the same session are computed from the stored aggregate on every request, so a completed session's summary never changes.
+24. Session History lists published and cancelled sessions the person can view (assumption 7 applies), filed under completion, else publication, else creation date. Date filters are whole UTC days, inclusive.
+25. Team and application reports count **completed** sessions only, filtered by completion date. Team reports are for the team's moderators and administrators; the application report is for administrators only. Application moderators who do not moderate a team cannot see its report.
+26. "People who took part" in the application report = joined invitees plus facilitators.
+27. The audit log is for session moderators (team moderators, facilitators, administrators). Audit views drop any detail that could hold a card choice; the override's chosen estimate is shown on the summary instead.
+28. Anonymous distributions are shown per revealed round, as in the planning room. A round with a single voter therefore shows that voter's choice to anyone who knows they voted — the same as the live room.
+
 ## Open decisions
 
 - What value is written to the "additional writable fields"? They are stored and validated but not written yet.

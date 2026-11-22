@@ -2,7 +2,12 @@
  * Local mock backend: the real resolver handlers and application services running in the browser
  * against in-memory adapters. Pick who you are with `?as=admin|moderator|member|sam|observer`.
  */
-import { SessionService, SettingsService, TeamService } from '@planning-poker/application';
+import {
+  ReportService,
+  SessionService,
+  SettingsService,
+  TeamService,
+} from '@planning-poker/application';
 import { createInMemoryApplication } from '@planning-poker/application/testing';
 import type { EventPublisher } from '@planning-poker/application';
 import type { ResolverResult, SessionEvent } from '@planning-poker/contracts';
@@ -19,6 +24,7 @@ import type { PlanningPokerApi } from '@planning-poker/ui';
 import { unwrap } from '@planning-poker/ui';
 
 import { createHandlers } from '../../../src/handlers';
+import { seedCompletedSession } from './dev-seed-reports';
 import type { Logger } from '../../../src/logger';
 
 const TENANT = asId<TenantId>('local-tenant');
@@ -41,6 +47,12 @@ const ISSUES = [
   ['Dark mode for settings', 'Story'],
   ['Upgrade Node runtime', 'Task'],
 ] as const;
+
+/** Extra teammates who appear only in the completed sample session (Milestone 8). */
+const REPORT_EXTRA_PEOPLE = {
+  noor: { id: 'atlassian:noor', name: 'Noor Designer', role: 'member' },
+  raj: { id: 'atlassian:raj', name: 'Raj Engineer', role: 'member' },
+} as const satisfies Record<string, { id: string; name: string; role: ApplicationRole }>;
 
 /** Jira issue IDs are numeric and unrelated to keys; mimic that. */
 const FIRST_ISSUE_ID = 10_001;
@@ -163,7 +175,36 @@ export async function createDevApi(search: string): Promise<DevBackend> {
   await sessions.respondToInvitation(actorFor(PEOPLE.sam), live.id, 'joined');
   await sessions.createDraft(max, { name: 'Sprint 43 planning', teamId: platform.id });
 
-  const handlers = createHandlers({ identity: app.identity, teams, settings, sessions }, devLogger);
+  // Milestone 8: a completed earlier sprint, so History and Reports have data.
+  for (const person of Object.values(REPORT_EXTRA_PEOPLE)) {
+    app.identity.add({
+      id: asId<UserId>(person.id),
+      tenantId: TENANT,
+      displayName: person.name,
+      externalIdentities: [],
+    });
+    await teams.addMember(max, platform.id, asId<UserId>(person.id));
+  }
+
+  await seedCompletedSession({
+    sessions,
+    clock: app.clock,
+    workItems: app.workItems,
+    teamId: platform.id,
+    issueKeys: ['PP-4', 'PP-5', 'PP-6', 'PP-7', 'PP-8', 'PP-3'],
+    people: {
+      moderator: max,
+      voters: [actorFor(PEOPLE.member), actorFor(PEOPLE.sam), actorFor(REPORT_EXTRA_PEOPLE.noor)],
+      decliner: actorFor(REPORT_EXTRA_PEOPLE.raj),
+      observer: actorFor(PEOPLE.observer),
+    },
+  });
+
+  const reports = new ReportService(deps);
+  const handlers = createHandlers(
+    { identity: app.identity, teams, settings, sessions, reports },
+    devLogger,
+  );
   const people = Object.values(PEOPLE);
 
   const simulateTeammates = async (): Promise<number> => {

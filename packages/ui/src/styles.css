@@ -769,3 +769,92 @@
 .pp-muted[data-tone='amber'] {
   color: var(--pp-tone-amber-fg, var(--pp-color-highlight));
 }
+
+/* Milestone 8 — history, summaries and reports ------------------------------------------- */
+
+.pp-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  align-items: end;
+  gap: var(--pp-space-3);
+}
+
+.pp-filters-actions {
+  display: flex;
+  align-items: end;
+}
+
+.pp-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+  gap: var(--pp-space-3);
+  margin: 0;
+}
+
+.pp-stat {
+  padding: var(--pp-space-3);
+  border: 1px solid var(--pp-color-border);
+  border-radius: var(--pp-radius-sm);
+  background: var(--pp-color-surface-raised);
+}
+
+.pp-stat-label {
+  color: var(--pp-color-text-muted);
+  font-size: var(--pp-font-size-small);
+}
+
+.pp-stat-value {
+  margin: 0;
+  font-size: var(--pp-font-size-title);
+  font-weight: 700;
+}
+
+.pp-summary-row {
+  display: contents;
+}
+
+.pp-table-wrap {
+  overflow-x: auto;
+}
+
+.pp-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--pp-font-size-small);
+}
+
+.pp-table th,
+.pp-table td {
+  padding: var(--pp-space-2) var(--pp-space-3);
+  border-bottom: 1px solid var(--pp-color-border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.pp-table thead th {
+  color: var(--pp-color-text-muted);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.pp-table tbody th {
+  font-weight: 600;
+}
+
+.pp-details {
+  padding: var(--pp-space-2) 0;
+  border-top: 1px solid var(--pp-color-border);
+}
+
+.pp-details summary {
+  cursor: pointer;
+}
+
+.pp-details summary:focus-visible {
+  outline: none;
+  box-shadow: var(--pp-focus-ring);
+}
+
+.pp-round-result {
+  margin-top: var(--pp-space-3);
+}

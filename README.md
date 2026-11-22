@@ -12,6 +12,7 @@ Collaborative estimation for agile teams, built as a platform-independent TypeSc
 | 4 — Jira ticket import    | Done | No — needs real Jira issues on a dev site  |
 | 5 — Voting and realtime   | Done | No — needs a dev site with several users   |
 | 6 — Facilitator controls  | Done | No — needs a dev site with several users   |
+| 8 — Reports and history   | Done | No — needs a dev site with real sessions   |
 | Voting engine (for M3–M6) | Done | Domain + application only; scenarios A–J   |
 
 ## Commands
@@ -29,7 +30,7 @@ npm run build      # Custom UI → apps/jira-forge/static/main/build
 npm run dev:ui --workspace @planning-poker/jira-forge
 ```
 
-Open http://localhost:5173/dev.html. The page runs the real resolver handlers and application services in the browser against in-memory storage, a seeded user directory (Ada Admin, Max Moderator, Mia Member, Sam Developer, Lee Tester), a fake Jira project with issues `PP-1` to `PP-8` (search it with any words, e.g. `project = PP` or `bug`; the fake ignores JQL syntax), one published session (Mia has a pending invitation) and one draft. Pick who you are with a query parameter:
+Open http://localhost:5173/dev.html. The page runs the real resolver handlers and application services in the browser against in-memory storage, a seeded user directory (Ada Admin, Max Moderator, Mia Member, Sam Developer, Lee Tester), a fake Jira project with issues `PP-1` to `PP-8` (search it with any words, e.g. `project = PP` or `bug`; the fake ignores JQL syntax), one published session (Mia has a pending invitation), one draft, and one completed session ("Sprint 41 planning": unanimous, revoted, overridden, skipped and unresolved tickets, a skipped voter, a declined invitation and a failed Jira write) for Session History and Reports. Pick who you are with a query parameter:
 
 - `dev.html?as=admin` (default) — Jira administrator: all teams, Settings, moderator assignment.
 - `dev.html?as=moderator` — application moderator: can create teams and manage their own.

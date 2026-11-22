@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { SessionService, SettingsService, TeamService } from '@planning-poker/application';
+import {
+  ReportService,
+  SessionService,
+  SettingsService,
+  TeamService,
+} from '@planning-poker/application';
 import { createInMemoryApplication } from '@planning-poker/application/testing';
 import type { ApplicationRole, TenantId, UserId } from '@planning-poker/domain';
 import { asId } from '@planning-poker/domain';
@@ -38,6 +43,7 @@ function setup(role: ApplicationRole) {
       teams,
       settings: new SettingsService(deps),
       sessions,
+      reports: new ReportService(deps),
     },
     logger,
   );

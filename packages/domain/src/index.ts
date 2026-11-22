@@ -10,6 +10,8 @@ export * from './participation';
 export * from './session';
 export * from './session-lifecycle';
 export * from './session-roster';
+export * from './session-statistics';
+export * from './session-summary';
 export * from './session-voting';
 export * from './team';
 export * from './ticket';

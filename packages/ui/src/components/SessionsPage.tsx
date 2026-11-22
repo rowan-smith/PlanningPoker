@@ -6,6 +6,7 @@ import { useAction, useLoad } from '../hooks';
 import { EmptyState } from './EmptyState';
 import { ErrorMessage, Loading } from './Feedback';
 import { SessionBuilder } from './SessionBuilder';
+import { SessionSummary } from './SessionSummary';
 import { PlanningRoom } from './PlanningRoom';
 import { STATUS_LABELS } from '../labels';
 
@@ -15,7 +16,7 @@ export interface SessionsPageProps {
   readonly initialSessionId?: string | null;
 }
 
-type Opened = { readonly id: string; readonly mode: 'builder' | 'overview' } | null;
+type Opened = { readonly id: string; readonly mode: 'builder' | 'overview' | 'summary' } | null;
 
 export function SessionsPage({ api, initialSessionId = null }: SessionsPageProps) {
   const [opened, setOpened] = useState<Opened>(
@@ -38,6 +39,12 @@ export function SessionsPage({ api, initialSessionId = null }: SessionsPageProps
           setOpened({ id: opened.id, mode: 'overview' });
         }}
       />
+    );
+  }
+
+  if (opened?.mode === 'summary') {
+    return (
+      <SessionSummary api={api} sessionId={opened.id} onBack={back} backLabel="Back to sessions" />
     );
   }
 
@@ -104,6 +111,17 @@ export function SessionsPage({ api, initialSessionId = null }: SessionsPageProps
                       {editable ? 'Continue setup' : 'Open'}
                       <span className="pp-visually-hidden"> {session.name}</span>
                     </button>
+                    {session.status === 'completed' && (
+                      <button
+                        type="button"
+                        className="pp-button"
+                        onClick={() => {
+                          setOpened({ id: session.id, mode: 'summary' });
+                        }}
+                      >
+                        Summary<span className="pp-visually-hidden"> of {session.name}</span>
+                      </button>
+                    )}
                   </li>
                 );
               })}
