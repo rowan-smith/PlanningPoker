@@ -11,6 +11,7 @@ Collaborative estimation for agile teams, built as a platform-independent TypeSc
 | 3 — Session builder       | Done | No — needs a Jira dev site                 |
 | 4 — Jira ticket import    | Done | No — needs real Jira issues on a dev site  |
 | 5 — Voting and realtime   | Done | No — needs a dev site with several users   |
+| 6 — Facilitator controls  | Done | No — needs a dev site with several users   |
 | Voting engine (for M3–M6) | Done | Domain + application only; scenarios A–J   |
 
 ## Commands

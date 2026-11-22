@@ -122,6 +122,8 @@ export interface SessionViewerView {
   /** Whether the viewer may vote now on upcoming tickets (hidden until each one reveals). */
   readonly canPreVote: boolean;
   readonly canModerate: boolean;
+  /** Whether the viewer may invite people now (moderators, while the session accepts them). */
+  readonly canInvite: boolean;
 }
 
 export interface SessionView {
@@ -319,6 +321,12 @@ export interface ScoringPayload extends SessionPayload {
   readonly allowInvitationsWhileActive: boolean;
 }
 
+export type SkipScopeDto = 'ticket' | 'session';
+
+export interface SessionTicketPayload extends SessionPayload {
+  readonly ticketId: string;
+}
+
 export interface TeamDetailsPayload {
   readonly name: string;
   readonly description: string | null;
@@ -381,6 +389,25 @@ export interface PlanningPokerResolvers {
   respondToInvitation: (
     payload: SessionPayload & { readonly response: 'joined' | 'declined' },
   ) => HomeView;
+  // Milestone 6 — facilitator controls
+  inviteToRoom: (payload: SessionRolePayload) => SessionView;
+  changeRoomRole: (payload: SessionRolePayload) => SessionView;
+  revokeRoomInvitation: (payload: SessionParticipantPayload) => SessionView;
+  skipParticipant: (
+    payload: SessionParticipantPayload & { readonly scope: SkipScopeDto },
+  ) => SessionView;
+  restoreParticipant: (payload: SessionParticipantPayload) => SessionView;
+  revealRound: (payload: SessionTicketPayload) => SessionView;
+  startNewRound: (payload: SessionTicketPayload) => SessionView;
+  acceptConsensus: (payload: SessionTicketPayload) => SessionView;
+  overrideEstimate: (
+    payload: SessionTicketPayload & { readonly cardId: string; readonly reason: string },
+  ) => SessionView;
+  skipTicket: (payload: SessionTicketPayload) => SessionView;
+  setCurrentTicket: (payload: SessionTicketPayload) => SessionView;
+  pauseSession: (payload: SessionPayload) => SessionView;
+  resumeSession: (payload: SessionPayload) => SessionView;
+  completeSession: (payload: SessionPayload) => SessionView;
 }
 
 export type ResolverKey = keyof PlanningPokerResolvers;
@@ -437,6 +464,21 @@ export const RESOLVER_KEYS = [
   'cancelSession',
   'getSession',
   'respondToInvitation',
+  // Milestone 6 — facilitator controls
+  'inviteToRoom',
+  'changeRoomRole',
+  'revokeRoomInvitation',
+  'skipParticipant',
+  'restoreParticipant',
+  'revealRound',
+  'startNewRound',
+  'acceptConsensus',
+  'overrideEstimate',
+  'skipTicket',
+  'setCurrentTicket',
+  'pauseSession',
+  'resumeSession',
+  'completeSession',
 ] as const satisfies readonly ResolverKey[];
 
 /**

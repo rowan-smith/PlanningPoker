@@ -48,9 +48,14 @@ Source: _Planning Poker — Product & Engineering Specification v2.1_. This file
 17. Imports and searches run as the moderator, so Jira's issue permissions decide what can be imported. Keys that do not exist or are not visible are reported together as "not found, or you do not have access" — Jira does not distinguish them.
 18. Up to 100 keys per import and 5 extra display fields per session. Changing display fields refreshes tickets already in the draft.
 19. Descriptions and field values are stored as plain text (converted from Atlassian Document Format) and shown as text. Rich formatting such as tables and images is reduced to text.
-20. Moving to the next ticket is available to moderators from Milestone 5 so sessions can progress; the rest of the facilitator controls (skip, restore, revote, override, pause) arrive in Milestone 6.
+20. Moderators can move to the next open ticket or to any chosen ticket, only while the session is active (not paused). Choosing a closed ticket just shows it; nothing reopens.
 21. A voter must join before voting; invited voters still count as required for the round (assumption 1), so the room shows "Invited · waiting" for them.
 22. An issue whose key changed since it was typed (moved between projects) is imported under its new key and the old key is also listed as not found.
+23. Restarting an open round (a new round before reveal) discards that round's votes and freezes a fresh roster, so voters who joined late take part. Revoting after a reveal does the same and keeps the revealed round as history.
+24. While a session is paused, moderators can still manage participants (invite, change roles, skip, restore), accept or override a revealed result and skip tickets. Voting, reveal, revote and moving between tickets wait for resume; a round that became complete while paused reveals on resume.
+25. Manual reveal is offered, but uses the same condition as auto-reveal (every required voter has voted). To reveal without absent voters, the moderator skips them for the ticket.
+26. With auto-finalize off, a moderator accepts a unanimous regular result explicitly. If the destination field cannot take that value, accepting is refused and the moderator overrides instead. Override reasons are limited to 500 characters and stored in the audit log.
+27. Skipping a voter "for this ticket" needs an open round on the current ticket; "for the rest of the session" works at any time while the session runs.
 
 ## Open decisions
 
