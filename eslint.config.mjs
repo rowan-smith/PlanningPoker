@@ -8,7 +8,7 @@ import tseslint from 'typescript-eslint';
 // eslint-config-prettier (last) switches off anything that would fight Prettier.
 export default tseslint.config(
   {
-    ignores: ['**/node_modules/', '**/dist/', '**/build/', '**/coverage/'],
+    ignores: ['.claude/', '.idea/', '**/node_modules/', '**/dist/', '**/build/', '**/coverage/'],
   },
   eslint.configs.recommended,
   {

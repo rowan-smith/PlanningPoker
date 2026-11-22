@@ -6,3 +6,7 @@ package-lock.json
 
 playwright-report/
 test-results/
+
+# Local tool state (Claude Code worktrees, IDE settings)
+.claude/
+.idea/
